@@ -3,7 +3,7 @@ import sys
 import re
 
 # this example shows minimal working program without any imports.
-#  this is especially useful for people building it in other programming languages
+# this is especially useful for people building it in other programming languages
 if len(sys.argv) == 2 and sys.argv[1] == "info":
     # Output the 5 required info lines
     print("My First Analyzer")
