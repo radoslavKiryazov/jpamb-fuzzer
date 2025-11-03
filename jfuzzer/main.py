@@ -33,6 +33,7 @@ if __name__ == "__main__":
 
         try: 
             fuzzing_result = fuzzer.run_fuzzer(item, cases)
+            
         except timeout_decorator.TimeoutError as e:
             print(f"Fuzzing timed out for issue {item.method_id}: {e}")
             fuzzing_result = {"status": "TO"}
