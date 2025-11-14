@@ -5,7 +5,7 @@ import sys
 from loguru import logger
 
 logger.remove()
-logger.add(sys.stderr, format="[{level}] {message}")
+logger.add(sys.stderr, format="[{}] {}".format("{level}", "{message}"))
 
 methodid, input = jpamb.getcase()
 
@@ -20,7 +20,7 @@ def is_int(v: jvm.Value) -> bool:
         return type(getattr(v, "type")).__name__.lower() in ("int", "integer")
     except Exception:
         return False
-
+    
 def is_bool(v: jvm.Value) -> bool:
     try:
         return type(getattr(v, "type")).__name__.lower() in ("bool", "boolean")
@@ -51,7 +51,8 @@ def cond_name(cond) -> str:
 def get_if_cond_and_target(op) -> tuple[str, int]:
     # Try fields first
     c = getattr(op, "cond", getattr(op, "condition", getattr(op, "operant", getattr(op, "op", None))))
-    t = getattr(op, "target", None)
+    # NEW: also consider "offset" as a possible jump target field
+    t = getattr(op, "target", getattr(op, "offset", None))
     cn = cond_name(c)
     if t is not None and isinstance(t, int):
         return cn, t
@@ -88,17 +89,25 @@ def make_ref_value(class_name: str) -> jvm.Value:
         return val
     except Exception:
         # Last resort: just use int
-        return jvm.Value.int(0)
+        return RefObject(class_name)
 
-# ---------- containers
+# ---------- containers\\
+
+@dataclass
+class RefObject:
+    class_name: str
 
 @dataclass
 class PC:
     method: jvm.AbsMethodID
     offset: int
-    def __iadd__(self, delta): self.offset += delta; return self
-    def __add__(self, delta): return PC(self.method, self.offset + delta)
-    def __str__(self): return f"{self.method}:{self.offset}"
+    def __iadd__(self, delta):
+        self.offset += delta
+        return self
+    def __add__(self, delta):
+        return PC(self.method, self.offset + delta)
+    def __str__(self):
+        return f"{self.method}:{self.offset}"
 
 @dataclass
 class Bytecode:
@@ -115,15 +124,21 @@ class Bytecode:
 @dataclass
 class Stack[T]:
     items: list[T]
-    def __bool__(self): return len(self.items) > 0
+    def __bool__(self):
+        return len(self.items) > 0
     @classmethod
-    def empty(cls): return cls([])
-    def peek(self) -> T: return self.items[-1]
-    def pop(self) -> T: return self.items.pop(-1)
+    def empty(cls):
+        return cls([])
+    def peek(self) -> T:
+        return self.items[-1]
+    def pop(self) -> T:
+        return self.items.pop(-1)
     def push(self, v):
-        self.items.append(v); return self
+        self.items.append(v)
+        return self
     def __str__(self):
-        if not self: return "ϵ"
+        if not self:
+            return "ϵ"
         return "".join(f"{v}" for v in self.items)
 
 suite = jpamb.Suite()
@@ -134,9 +149,9 @@ class Frame:
     locals: dict[int, jvm.Value]
     stack: Stack[jvm.Value]
     pc: PC
-    def __str__(self):
+    def _str_(self):
         locals_str = ", ".join(f"{k}:{v}" for k, v in sorted(self.locals.items()))
-        return f"<{{{locals_str}}}, {self.stack}, {self.pc}>"
+        return f"<{{{locals_str}}}, {self.stack}, {self.pc}>"       
     @staticmethod
     def from_method(m: jvm.AbsMethodID) -> "Frame":
         return Frame({}, Stack.empty(), PC(m, 0))
@@ -181,8 +196,25 @@ def step(state: State) -> State | str:
             frame.pc += 1
             return state
 
+        # NEW: Pop - discard top-of-stack
+        case _ if name == "pop":
+            _ = frame.stack.pop()
+            frame.pc += 1
+            return state
+
+        # NEW: Swap - swap top two stack elements
+        case _ if name == "swap":
+            v1 = frame.stack.pop()
+            v2 = frame.stack.pop()
+            frame.stack.push(v1).push(v2)
+            frame.pc += 1
+            return state
+
         # Integer arithmetic (div, add, sub, mul)
-        case _ if name == "binary" and type(getattr(op, "type")).__name__.lower() in ("int", "integer"):
+        case _ if (
+            name == "binary"
+            or "binary" in name  # NEW: be robust to slight naming variations
+        ) and type(getattr(op, "type")).__name__.lower() in ("int", "integer"):
             v2 = frame.stack.pop(); v1 = frame.stack.pop()
             assert is_int(v1) and is_int(v2), f"int binary expects ints: {v1}, {v2}"
             oper = getattr(op, "operant", getattr(op, "op", None))
@@ -234,7 +266,7 @@ def step(state: State) -> State | str:
                 x = 1 if v.value else 0
             else:
                 x = v.value
-            
+
             c, t = get_if_cond_and_target(op)
             if t is None:
                 raise NotImplementedError(f"Ifz missing target: {op!r}")
@@ -270,7 +302,16 @@ def step(state: State) -> State | str:
 
         # Goto
         case _ if name == "goto":
-            frame.pc = PC(frame.pc.method, op.target)
+            # NEW: robust target lookup
+            tgt = getattr(op, "target", getattr(op, "offset", None))
+            if tgt is None:
+                # Fall back to repr parse
+                text = str(op).lower()
+                try:
+                    tgt = int(text.split()[-1].rstrip(')'))
+                except Exception:
+                    raise NotImplementedError(f"Goto missing target: {op!r}")
+            frame.pc = PC(frame.pc.method, tgt)
             return state
 
         # Return (int or void)
@@ -315,27 +356,37 @@ def step(state: State) -> State | str:
 
         # New <class>
         case _ if name == "new":
-            # Create a reference-like value
-            # Try different ways to get the class name
-            cls = getattr(op, "class", getattr(op, "cls", getattr(op, "type", None)))
-            if cls is None:
-                # Parse from string representation
-                cls_name = str(op).split()[-1] if " " in str(op) else "Unknown"
-            else:
-                cls_name = str(cls)
+            # Parse the class name from the textual form, e.g. "new java/lang/AssertionError"
+            text = str(op)
+            cls_name = "Unknown"
+            try:
+                if "new " in text:
+                    # take the token right after "new"
+                    cls_name = text.split("new", 1)[1].strip().split()[0]
+                else:
+                    # fallback: last token
+                    cls_name = text.split()[-1]
+            except Exception:
+                pass
+
             ref_val = make_ref_value(cls_name)
             frame.stack.push(ref_val)
             frame.pc += 1
             return state
-
         # Invoke (handle invokespecial <init> only)
         case _ if name in ("invoke", "invokespecial", "invokevirtual", "invokestatic"):
             # Get method details
             meth = getattr(op, "method", None)
-            
-            # Check if it's a special invocation (constructor)
-            is_special = (name == "invokespecial") or ("special" in name)
-            
+
+            # NEW: also use "access" field to detect special invokes
+            access = getattr(op, "access", "")
+            access_s = str(access).lower() if access is not None else ""
+            is_special = (
+                name == "invokespecial"
+                or "special" in name
+                or "special" in access_s  # NEW
+            )
+
             # For <init> constructors, just pop args and object ref
             if is_special and meth is not None:
                 method_name = ""
@@ -345,7 +396,7 @@ def step(state: State) -> State | str:
                         method_name = getattr(ext, "name", "")
                 except Exception:
                     pass
-                
+
                 if method_name == "<init>":
                     # Pop constructor arguments (if any)
                     try:
@@ -356,7 +407,7 @@ def step(state: State) -> State | str:
                                 frame.stack.pop()
                     except Exception:
                         pass
-                    
+
                     # Pop the object reference
                     obj = frame.stack.pop()
                     # Mark object as initialized
@@ -365,25 +416,34 @@ def step(state: State) -> State | str:
                             obj._ref_data["init"] = True
                     except Exception:
                         pass
+                    
+                    frame.stack.push(obj)
                     frame.pc += 1
                     return state
-            
+
             raise NotImplementedError(f"Invoke {name} for method {meth} not implemented")
 
         # Throw (athrow)
         case _ if name == "throw":
             ex = frame.stack.pop()
-            clsname = ""
-            try:
-                # Try to get class name from ref_data
-                if hasattr(ex, "_ref_data"):
-                    clsname = ex._ref_data.get("class", "")
-            except Exception:
-                pass
-            if "assertionerror" in clsname.lower():
+            clsname = None
+            
+            if isinstance(ex, RefObject):
+                clsname = ex.class_name
+            else:
+            # Try to get the class name from our fake reference metadata
+             try:
+                 t = getattr(ex, "type", None)
+                 n = getattr(t, "name", None)
+                 clsname = n if n is not None else t
+             except Exception:
+              clsname = ""
+              
+              
+            cls_str = str(clsname).lower().replace("/", ".")
+            if "assertionerror" in cls_str:
                 return "assertion error"
             return "failure"
-
         # Fallback
         case other:
             raise NotImplementedError(f"Don't know how to handle: {other!r}")

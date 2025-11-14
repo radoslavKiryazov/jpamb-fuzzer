@@ -1,6 +1,6 @@
 import json
 
-class CaseLoader:
+class caseloader:
     def __init__(self, file_path):
         self.file_path = file_path
         self.data = None
