@@ -10,15 +10,17 @@ class fuzzer:
         pass
 
 
-    # @staticmethod
-    # def code_finder(method_id):
-    #     extracter = json_name_extracter()
-    #     name = extracter.extract_json(method_id)
+    @staticmethod
+    #collect offsets for coverage guided 
+    def code_finder(method_id):
+        extracter = json_name_extracter()
+        name = extracter.extract_json(method_id) 
         
-    #     caseloader = caseloader(name)
-    #     caseloader.load()
-        
-    #     return None  # Placeholder for actual code finding logic 
+        caseloader = caseloader(name)
+        caseloader.load()
+
+             
+        return None  # Placeholder for actual code finding logic 
 
 
     @staticmethod
@@ -32,7 +34,7 @@ class fuzzer:
         return False
     
 
-    def some_other_oracle(self, execution_output, target):
+    def some_other_Foracle(self, execution_output, target):
         pass
 
 
@@ -43,8 +45,10 @@ class fuzzer:
 
         # SUT = code_finder(target.method_id)
         fz_results = "NC"  # Default status
-
-        r = Reporter(None)
+        
+        # run the internal fuzzer pass test cases and method.id
+        
+        
 
         results = {
             "status": fz_results,  # Example status
