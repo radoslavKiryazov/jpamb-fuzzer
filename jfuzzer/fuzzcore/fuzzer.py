@@ -1,27 +1,24 @@
-
 from json_name_extracter import json_name_extracter
 from caseloader import CaseLoader
+
+
 class fuzzer:
     """
     Fuzzer core logic to run fuzzing on given targets with test cases.
     """
-
-
     def __init__(self) -> None:
         pass
 
 
-    @staticmethod
-    def code_finder(method_id):
-        extracter = json_name_extracter()
-        name = extracter.extract_json(method_id)
+    # @staticmethod
+    # def code_finder(method_id):
+    #     extracter = json_name_extracter()
+    #     name = extracter.extract_json(method_id)
         
-        caseloader = caseloader(name)
-        caseloader.load()
+    #     caseloader = caseloader(name)
+    #     caseloader.load()
         
-        
-        
-        return None  # Placeholder for actual code finding logic 
+    #     return None  # Placeholder for actual code finding logic 
 
 
     @staticmethod
@@ -39,10 +36,15 @@ class fuzzer:
         pass
 
 
-    def run_fuzzer(self, target, test_cases):
+    @staticmethod
+    def run_fuzzer(target, test_cases):
+        # target: method_id, trigger input, error type
+        # example: jpamb.cases.Simple.assertInteger:(0) -> assertion error
 
-        SUT = code_finder(target.method_id)
+        # SUT = code_finder(target.method_id)
         fz_results = "NC"  # Default status
+
+        r = Reporter(None)
 
         results = {
             "status": fz_results,  # Example status

@@ -9,20 +9,19 @@ class CaseGenerator:
     """
     Generates fuzzing cases for given method identifiers.
     """
-    def __init__(self, parsed_results) -> None:
-        self.parsed_results = parsed_results
-        
-    def generate_cases(self, count = 10):
-        """
-        Generate fuzzing cases for the given method identifier.
-        """
-        cases = []
-        for i in range(count):
-            case = f"case_{i}" # Placeholder for actual case generation logic;
-            cases.append(case)
-        return cases
+    def __init__(self, target) -> None:
+        # target is a base as in suite.case
+        self.target = target
 
+    GEN_BATCH_SIZE = 20
+    GEN_STRATEGY = {
+        "default": "Combination of new and mutated inputs.",
+        "new": "Generate entirely new inputs based on method signature.",
+        "mutate": "Mutate existing valid inputs to create new test cases.", 
+        "llm": "Use large language models to generate sophisticated inputs."
+    }
     
+
     def _mutate(self, base_input):
         """
         Apply controlled mutations depending on the data type.
@@ -42,6 +41,7 @@ class CaseGenerator:
         else:
          return data;
    
+
     def _mutate_int(self, value):
         mutations = [
             lambda x: x + random.randint(-10, 10),
@@ -49,6 +49,7 @@ class CaseGenerator:
             lambda x: random.randint(-99999, 99999)
         ]
         return random.choice(mutations)(value)
+
     
     def _mutate_str(self, value):
         mutations = [
@@ -57,9 +58,11 @@ class CaseGenerator:
             lambda s: s + ''.join(random.choices(string.punctuation, k=2)),
         ]
         return random.choice(mutations)(value)
+
     
     def _mutate_list(self, value):
         return value + 1;
+
     
     def _mutate_float(self, value):
         mutations = [
@@ -67,6 +70,7 @@ class CaseGenerator:
             lambda x: x * random.uniform(0.5, 2.0),
         ]
         return random.choice(mutations)(value)
+
     
     def _mutate_dict(self, d):
         d = copy.deepcopy(d)
@@ -74,3 +78,36 @@ class CaseGenerator:
             lambda d: d.update({f"new_{random.randint(0, 100)}": random.randint(0, 100)}) or d,
         ]
         return random.choice(mutations)(d)
+    
+    
+    def generate_new_cases(self, count = GEN_BATCH_SIZE):
+        """
+        Generate new fuzzing cases for the given method identifier.
+        """
+        cases = []
+        for i in range(count):
+            case = f"case_{i}" # Placeholder for actual case generation logic;
+            cases.append(case)
+        return cases
+    
+
+    def generate_mutated_cases(self, count = GEN_BATCH_SIZE):
+        """
+        Generate mutated fuzzing cases based on a base case.
+        """
+
+        # base case is self.target
+
+        mutated_cases = []
+        for i in range(count):
+            mutated_case = self._mutate(base_case)
+            mutated_cases.append(mutated_case)
+        return mutated_cases
+
+
+    def update_strategy(self, fuzzing_result=None, strategy_params=GEN_STRATEGY["default"]):
+        """
+        Update the case generation strategy based on previous fuzzing results.
+        """
+        # Placeholder for actual strategy update logic
+        pass

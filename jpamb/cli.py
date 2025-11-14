@@ -858,5 +858,171 @@ def plot(ctx, report, directory):
         plot_scores(scores, times, labels, classes)
 
 
+cli.command()
+# @click.option(
+#     "--with-python/--no-with-python",
+#     "-W/-noW",
+#     help="the analysis is a python script, which should run in the same interpreter as jpamb.",
+#     default=None,
+# )
+@click.option(
+    "--stepwise / --no-stepwise",
+    help="continue from last failure",
+)
+@click.option(
+    "--timeout",
+    show_default=True,
+    default=2.0,
+    help="timeout in seconds.",
+)
+@click.option(
+    "--filter",
+    "-f",
+    help="A regular expression which filter the methods to run on.",
+    callback=re_parser,
+)
+@click.option(
+    "--report",
+    "-r",
+    default="-",
+    type=click.File(mode="w"),
+    help="A file to write the report to. (Good for golden testing)",
+)
+# @click.argument("PROGRAM", nargs=-1)
+@click.pass_obj
+def jfuzz(suite, report, filter, timeout, stepwise):
+# def jfuzz(suite, program, report, filter, with_python, timeout, stepwise):
+    import time
+    import timeout_decorator
+
+    from jfuzzer.fuzzcore import fuzzer, CaseGenerator
+    from jfuzzer.report_preprocess.parser import parser
+    from jfuzzer.result_analysis.analyzer import analyzer
+    from jfuzzer.util.saver import saver
+
+
+    # 1. load the config, initialization
+    config = {}
+    CAMPAIGN_ROUNDS = 10
+
+
+    # 2. load the fuzzer (interpreter)
+    try:
+        executable = str(Path(sys.executable).relative_to(Path.cwd()))
+    except ValueError:
+        log.warning(
+            "Python executable outside of current directory, might be a misconfiguration. "
+            "Run the tool with `uv run jpamb ...`."
+        )
+        executable = sys.executable
+
+
+    # TODO
+    fuzzer_program = (executable,) + fuzzer.program_invoke()
+
+
+    # 3. load the report, pre-process, etc.
+    report = parser.parse(config)  # Load the report
+    # r is an output formatter
+    r = Reporter(report)
+
+    last_campaign = None
+    if stepwise:
+        try:
+            with open(".jfuzz-stepwise") as f:
+                last_campaign = model.Case.decode(f.read())
+        except ValueError as e:
+            log.warning(e)
+            last_campaign = None
+        except IOError:
+            last_campaign = None
+
+
+    # 4. run the fuzzer main loop, and classify results
+    for item in report:
+        alarm_hit = 0
+
+        if last_campaign and last_campaign != item:
+            continue
+        last_campaign = None
+
+        if filter and not filter.search(str(item)):
+            continue
+
+        start = time.time()
+        casegen_time = []
+        with r.context(f"Case {item}"):
+            # For each fuzzing target we run several rounds of fuzzing (campaign_rounds). For each round of fuzzing campaign, we generate a batch of test cases. Every round we update the generative strategy based on previous results and generate new test cases for next round.
+
+            case_generator = CaseGenerator(item)
+            last_round_fuzzing_result = {}
+
+            for round in range(CAMPAIGN_ROUNDS):
+                print(f"Starting round {round} for issue {item.method_id}")
+
+                case_generator.update_strategy(last_round_fuzzing_result)
+
+                t1 = time.time()
+                fuzzing_test_cases = case_generator.generate_mutated_cases()
+                t2 = time.time()
+                casegen_time[round] = t2 - t1
+
+                fuzzing_result = {}
+                for case in fuzzing_test_cases:
+                    try:
+                        out = r.run(
+                            fuzzer_program + (item.methodid.encode(), case.input.encode()),
+                            timeout=timeout,
+                        )
+                        result = out.splitlines()[-1].strip()
+                        # im not sure about this syntax
+                        fuzzing_result.append(out)
+
+                    except subprocess.TimeoutExpired:
+                        result = "*"
+                    except subprocess.CalledProcessError as e:
+                        log.error(e)
+                        result = "failure"
+                        
+                    except timeout_decorator.TimeoutError as e:
+                        print(f"Fuzzing timed out for issue {item.method_id}: {e}")
+                        fuzzing_result = {"status": "TO"}
+                        continue
+
+                    saver(item, round, case, result)
+
+                    r.output(f"Original report: {item.result!r} \n round {round} result: {result!r}")
+                    if item.result == result:
+                        alarm_hit += 1
+                    elif stepwise:
+                        with open(".jfuzz-stepwise", "w") as f:
+                            f.write(item.encode())
+                        sys.exit(-1)
+                
+                last_round_fuzzing_result = fuzzing_result
+
+        end = time.time()
+        print(f"Fuzzing for issue {item.method_id} completed in {end - start} seconds.")
+        r.output(f"Alarm hit {alarm_hit}/{CAMPAIGN_ROUNDS}")
+
+        Path(".jfuzz-stepwise").unlink(True)
+
+        print(f"Fuzzing for issue {item.method_id} completed. Time elapsed: {end - start} seconds. Time for case generation per round: {casegen_time}")
+
+    # with open(log_location, "a") as fp:
+    #     fp.write(json.dumps(fuzz_data)+"\n")
+
+
+    # classify results
+    # 
+    # fuzzing_result["status"] can be:
+    #   C - There is at least one crash/buffer overflow at warning location
+    #   PFP - There is no crash/buffer overflow at the warning location, but the line is executed - Possible False Positive
+    #   NR - The warning line is not executed - Not Reachable
+    #   NC - The slice is not compiled - Not Compiled
+    #   TO - Timeout during fuzzing
+    pruned_results = analyzer.analyze_results(fuzzing_result)
+
+
 if __name__ == "__main__":
     cli()
