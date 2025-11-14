@@ -110,44 +110,44 @@ public class Runtime {
   }
 
   public static void main(String[] args)
-      throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException {
-    if (args.length == 0) {
-      var mths = caseclasses.stream().flatMap(c -> Stream.of(c.getMethods())).toList();
-      for (Method m : mths) {
-        for (Case c : cases(m)) {
-          CaseContent content = CaseContent.parse(c.value());
-          String sig = printMethodSignature(m);
-          String id = m.getDeclaringClass().getName() + "." + m.getName() + ":" + sig;
-          if (!Modifier.isStatic(m.getModifiers())) {
-            throw new RuntimeException("Expected " + id + " to be static");
+    throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException {
+      if (args.length == 0) {
+        var mths = caseclasses.stream().flatMap(c -> Stream.of(c.getMethods())).toList();
+        for (Method m : mths) {
+          for (Case c : cases(m)) {
+            CaseContent content = CaseContent.parse(c.value());
+            String sig = printMethodSignature(m);
+            String id = m.getDeclaringClass().getName() + "." + m.getName() + ":" + sig;
+            if (!Modifier.isStatic(m.getModifiers())) {
+              throw new RuntimeException("Expected " + id + " to be static");
+            }
+            System.out.printf("%-60s %s%n", id, content);
           }
-          System.out.printf("%-60s %s%n", id, content);
         }
+        return;
       }
-      return;
-    }
-    String thecase = args[0];
-    Pattern pattern = Pattern.compile("(.*)\\.([^.(]*):\\((.*)\\)(.*)");
-    Matcher matcher = pattern.matcher(thecase);
-    if (matcher.find()) {
-      String cls = matcher.group(1);
-      String mth = matcher.group(2);
-      String prams = matcher.group(3);
-      Method m = Class.forName(cls).getMethod(mth, parseMethodSignature(prams));
-      if (!Modifier.isStatic(m.getModifiers())) {
-        throw new RuntimeException("Expected " + pattern + " to be static");
-      }
-      for (int i = 1; i < args.length; i++) {
-        Object[] params = InputParser.parse(args[i]);
-        System.err.printf("Running %s with %s%n", m, Arrays.toString(params));
-        try {
-          m.invoke(null, params);
-        } catch (InvocationTargetException e) {
-          System.out.println(ResultType.fromThrowable(e.getCause()));
-          return;
+      String thecase = args[0];
+      Pattern pattern = Pattern.compile("(.*)\\.([^.(]*):\\((.*)\\)(.*)");
+      Matcher matcher = pattern.matcher(thecase);
+      if (matcher.find()) {
+        String cls = matcher.group(1);
+        String mth = matcher.group(2);
+        String prams = matcher.group(3);
+        Method m = Class.forName(cls).getMethod(mth, parseMethodSignature(prams));
+        if (!Modifier.isStatic(m.getModifiers())) {
+          throw new RuntimeException("Expected " + pattern + " to be static");
         }
+        for (int i = 1; i < args.length; i++) {
+          Object[] params = InputParser.parse(args[i]);
+          System.err.printf("Running %s with %s%n", m, Arrays.toString(params));
+          try {
+            m.invoke(null, params);
+          } catch (InvocationTargetException e) {
+            System.out.println(ResultType.fromThrowable(e.getCause()));
+            return;
+          }
+        }
+        System.out.println(ResultType.SUCCESS);
       }
-      System.out.println(ResultType.SUCCESS);
     }
-  }
 }

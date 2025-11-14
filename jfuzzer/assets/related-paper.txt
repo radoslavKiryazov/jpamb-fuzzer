@@ -1,0 +1,30 @@
+Lemieux, C., Inala, J. P., Lahiri, S. K., & Sen, S. (2023). Codamosa: Escaping coverage plateaus in test generation with pre-trained large language models. 2023 IEEE/ACM 45th International Conference on Software Engineering (ICSE), 919–931. https://ieeexplore.ieee.org/abstract/document/10172800/?casa_token=5EwYKD_lbW0AAAAA:_9qHYroYdhhoY8Go04roT8K3FMwyrixE4WfRx90B-hJLyvLUPcOOaIpOo3F0nTS4-MFNjTBZ
+
+Yang, Y., Yao, S., Chen, J., & Lee, W. (2025). Hybrid Language Processor Fuzzing via {LLM-Based} Constraint Solving. 34th USENIX Security Symposium (USENIX Security 25), 6299–6318. https://www.usenix.org/conference/usenixsecurity25/presentation/yang-yupeng
+
+Xu, H., Ma, W., Zhou, T., Zhao, Y., Chen, K., Hu, Q., Liu, Y., & Wang, H. (2025). CKGFuzzer: LLM-Based Fuzz Driver Generation Enhanced By Code Knowledge Graph. 2025 IEEE/ACM 47th International Conference on Software Engineering: Companion Proceedings (ICSE-Companion), 243–254. https://ieeexplore.ieee.org/abstract/document/11024256/?casa_token=qf6-9qXj6xYAAAAA:4APYBvyux10nGlaQ3SsYibsKpTsZg07CiD7tdhOEfl7AoMquw_sXYf184plnJvh8UehA3ytm
+
+Wu, S., Hu, Y., Gu, J., Mao, P., Meng, J., Fan, L., Luan, Z., Wang, X., & Zhou, Y. (2025). Testing False Recalls in E-Commerce Apps: A User-Perspective Blackbox Approach. 2025 IEEE/ACM 47th International Conference on Software Engineering: Software Engineering in Practice (ICSE-SEIP), 528–539. https://ieeexplore.ieee.org/abstract/document/11121689/?casa_token=nh2auxgBX5IAAAAA:iPC-Hryu-h3KiNUO08BV5_YN3M1-ueJBVJh3_IsQU8jNoZg6r7h6O8Ee3Xab2785Tm_lphUd
+
+Xue, Z., Gao, Z., Wang, S., Hu, X., Xia, X., & Li, S. (2024). SelfPiCo: Self-Guided Partial Code Execution with LLMs. Proceedings of the 33rd ACM SIGSOFT International Symposium on Software Testing and Analysis, 1389–1401. https://doi.org/10.1145/3650212.3680368
+
+Zhang, M., Tian, Y., Xu, Z., Dong, Y., Tan, S. H., & Sun, C. (2024). LPR: Large Language Models-Aided Program Reduction. Proceedings of the 33rd ACM SIGSOFT International Symposium on Software Testing and Analysis, 261–273. https://doi.org/10.1145/3650212.3652126
+
+Shi, W., Zhang, Y., Xing, X., & Xu, J. (2024). Harnessing Large Language Models for Seed Generation in Greybox Fuzzing (No. arXiv:2411.18143). arXiv. https://doi.org/10.48550/arXiv.2411.18143
+
+Kim, S., Kim, Y., Park, D., Jeon, Y., Yi, J., & Kim, M. (2025). Lightweight Concolic Testing via Path-Condition Synthesis for Deep Learning Libraries. 2025 IEEE/ACM 47th International Conference on Software Engineering (ICSE), 739–739. https://s2-lab.github.io/assets/Pathfinder_ICSE25.pdf
+
+
+Yadavally, A., Rong, X., Nguyen, P., & Nguyen, T. (2025). Large Language Models for Safe Minimization. 2025 IEEE/ACM 47th International Conference on Software Engineering (ICSE), 740–740. https://www.computer.org/csdl/proceedings-article/icse/2025/056900a740/251mHjJTNEk
+
+Liu, F., Zhang, Y., Luo, J., Dai, J., Chen, T., Yuan, L., Yu, Z., Shi, Y., Li, K., & Zhou, C. (2025). Make agent defeat agent: Automatic detection of {Taint-Style} vulnerabilities in {LLM-based} agents. 34th USENIX Security Symposium (USENIX Security 25), 3767–3786. https://www.usenix.org/conference/usenixsecurity25/presentation/liu-fengyu
+
+Zhang, H., Wang, D., Liu, Y., Chen, K., Wang, J., Ying, X., Liu, L., & Wang, W. (2025). ORFuzz: Fuzzing the “Other Side” of LLM Safety -- Testing Over-Refusal (No. arXiv:2508.11222). arXiv. https://doi.org/10.48550/arXiv.2508.11222
+
+Bao, A., Zhao, W., Wang, Y., Cheng, Y., McCamant, S., & Yew, P.-C. (2025). From Alarms to Real Bugs: Multi-target Multi-step Directed Greybox Fuzzing for Static Analysis Result Verification. 34th USENIX Security Symposium (USENIX Security 25), 6977–6997. https://www.usenix.org/conference/usenixsecurity25/presentation/bao-andrew
+
+Meng, R., Duck, G. J., & Roychoudhury, A. (2024). Large Language Model assisted Hybrid Fuzzing (No. arXiv:2412.15931). arXiv. https://doi.org/10.48550/arXiv.2412.15931
+
+Sheng, Z., Xu, Q., Huang, J., Woodcock, M., Huang, H., Donaldson, A. F., Gu, G., & Huang, J. (2025). All You Need Is A Fuzzing Brain: An LLM-Powered System for Automated Vulnerability Detection and Patching (No. arXiv:2509.07225). arXiv. https://doi.org/10.48550/arXiv.2509.07225
+
+

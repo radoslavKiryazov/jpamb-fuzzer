@@ -42,12 +42,10 @@ def run(cmd: list[str], /, timeout=2.0, logout=None, logerr=None, **kwargs):
     from time import monotonic, perf_counter_ns
 
     if not logerr:
-
         def logerr(a):
             pass
 
     if not logout:
-
         def logout(a):
             pass
 
@@ -274,7 +272,9 @@ def test(suite, program, report, filter, fail_fast, with_python, timeout):
             continue
 
         with r.context(f"Case {methodid}"):
+            # First run the analyzer on the methodid
             out = r.run(program + (str(methodid),), timeout=timeout)
+            # Then parse the output of the analyzer by passing it to the Java target program via model.Response
             response = model.Response.parse(out)
             with r.context("Results"):
                 for k, v in sorted(response.predictions.items()):
@@ -402,6 +402,7 @@ def interpret(suite, program, report, filter, with_python, timeout, stepwise):
 @click.argument("PROGRAM", nargs=-1)
 def evaluate(ctx, program, report, timeout, iterations, with_python):
     """Evaluate the PROGRAM."""
+    """Gernate final evaluation report."""
 
     program = resolve_cmd(program, with_python)
 
