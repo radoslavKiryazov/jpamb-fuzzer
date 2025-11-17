@@ -1,6 +1,8 @@
 from jpamb import jvm
 from jpamb.model import Suite, Input
 
+from jpamb import jfuzzer
+
 from typing import NoReturn, Any
 
 from pathlib import Path

@@ -25,7 +25,6 @@ Expected format:
 }
 """
 
-
 CASE_RE = re.compile(r"([^ ]*) +(\([^)]*\)) -> (.*)")
 
 
@@ -50,27 +49,32 @@ class Report_Item:
         m = Case.match(line)
         return Case(
             jvm.AbsMethodID.decode(m.group(1)),
-            Input.decode(m.group(2)),
+            # Input.decode(m.group(2)),
             m.group(3),
         )
 
+    # def __str__(self) -> str:
+    #     return f"{self.methodid.classname}.{self.methodid.extension.name}:{self.input.encode()} -> {self.result}"
+
+    # def encode(self) -> str:
+    #     return f"{self.methodid.classname}.{self.methodid.extension.encode()} {self.input.encode()} -> {self.result}"
+
     def __str__(self) -> str:
-        return f"{self.methodid.classname}.{self.methodid.extension.name}:{self.input.encode()} -> {self.result}"
+        return f"{self.methodid.classname}.{self.methodid.extension.name}: '' -> {self.result}"
 
     def encode(self) -> str:
-        return f"{self.methodid.classname}.{self.methodid.extension.encode()} {self.input.encode()} -> {self.result}"
+        return f"{self.methodid.classname}.{self.methodid.extension.encode()} '' -> {self.result}"
+    # @staticmethod
+    # def by_methodid(
+    #     iterable: Iterable["Case"],
+    # ) -> list[tuple[jvm.Absolute[jvm.MethodID], list["Case"]]]:
+    #     """Given an interable of cases, group the cases by the methodid"""
+    #     cases_by_id = collections.defaultdict(list)
 
-    @staticmethod
-    def by_methodid(
-        iterable: Iterable["Case"],
-    ) -> list[tuple[jvm.Absolute[jvm.MethodID], list["Case"]]]:
-        """Given an interable of cases, group the cases by the methodid"""
-        cases_by_id = collections.defaultdict(list)
+    #     for c in iterable:
+    #         cases_by_id[c.methodid].append(c)
 
-        for c in iterable:
-            cases_by_id[c.methodid].append(c)
-
-        return sorted(cases_by_id.items())
+    #     return sorted(cases_by_id.items())
 
 
 class Parser:
@@ -120,14 +124,12 @@ class Parser:
         return self._cases
 
 
-    def parse(self) -> List[Dict[str, Any]]:
+    def parse(self) -> List[Report_Item]:
         """
         Parse analyzer results from a given file path.
         Supports: .txt, .csv
         """
-        if self.extension == '.txt':
-            return self._parse_txt()
-        elif self.extension == '.csv':
+        if self.extension == '.csv':
             return self._parse_csv()
         else:
             raise ValueError(f"Unsupported file format: {self.extension}")
@@ -160,8 +162,8 @@ class Parser:
                 if not row.get("method"):
                     continue
 
-                # methodid = jvm.AbsMethodID.decode(row["method"])
-                method_name = row["method"];
+                method_name = jvm.AbsMethodID.decode(row["method"])
+                # method_name = jvm.Absolute(row["method"])
                   # count occurrences
                 error_counts = {
                     # "infinite loop": int(row["*"]),
@@ -175,7 +177,7 @@ class Parser:
                 # choose the one with the largest count
                 selected_error = max(error_counts, key=error_counts.get)
 
-                results.append({"method_name": method_name, "result": selected_error})
+                results.append(Report_Item(methodid=method_name, result=selected_error))
 
         return results
 
