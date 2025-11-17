@@ -9,7 +9,7 @@
 "jpamb.cases.Arrays.arraySometimesNull:(I)V","0","0","0","1","0","1"
 "jpamb.cases.Arrays.arraySpellsHello:([C)V","0","1","0","0","1","1"
 "jpamb.cases.Arrays.arraySumIsLarge:([I)V","0","1","0","0","1","0"
-"jpamb.cases.Arrays.binarySearch:(I)V","0","1","0","0","1","0"
+"jpamb.cases.Arrays.binarySearch:(I)V","0","1","0","0","1"," 0"
 "jpamb.cases.Calls.allPrimesArePositive:(I)V","0","1","0","0","1","1"
 "jpamb.cases.Calls.callsAssertFalse:()V","0","1","0","0","0","0"
 "jpamb.cases.Calls.callsAssertFib:(I)V","0","1","0","0","1","0"
@@ -36,4 +36,3 @@
 "jpamb.cases.Simple.justReturnNothing:()V","0","0","0","0","1","0"
 "jpamb.cases.Simple.multiError:(Z)I","0","1","1","0","0","0"
 "jpamb.cases.Tricky.collatz:(I)V","0","1","0","0","1","0"
-"-","8.1081%","48.6486%","13.5135%","8.1081%","64.8649%","10.8108%"

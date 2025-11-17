@@ -2,6 +2,8 @@ import random
 import copy
 import string
 
+from jpamb.report_preprocess.parser import Report_Item
+
 
 #pip install libfuzzer (for next iteration)
 
@@ -9,9 +11,9 @@ class CaseGenerator:
     """
     Generates fuzzing cases for given method identifiers.
     """
-    def __init__(self, target) -> None:
+    def __init__(self, Report_Item) -> None:
         # target is a base as in suite.case
-        self.target = target
+        self.target = Report_Item
 
     GEN_BATCH_SIZE = 20
     GEN_STRATEGY = {
