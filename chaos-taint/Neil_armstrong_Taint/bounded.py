@@ -411,6 +411,37 @@ def bounded_run(prog: 'Program', depth: int, init_env: Optional[Dict[str, Taint]
         if not per_pc: break
     return per_pc
 
+def relational_bounded_run(prog: 'Program', depth: int, init_env: Optional[Dict[str, Any]] = None) -> Dict[int, Any]:
+    """
+    Run bounded analysis with relational abstract domain.
+    Returns states enhanced with relational constraints.
+    """
+    if not _has_relational_domain:
+        # Fallback to regular bounded run
+        return bounded_run(prog, depth, init_env)
+    
+    try:
+        # Convert regular states to EnhancedAState format
+        enhanced_states = integrate_relational_domain(
+            prog, depth, init_env, Taint, AState, step_one
+        )
+        
+        # Convert back to regular AState format for compatibility
+        regular_states = {}
+        for pc, enhanced_state in enhanced_states.items():
+            regular_state = AState(
+                pc=enhanced_state.pc,
+                env=enhanced_state.env,
+                facts=enhanced_state.facts,
+                tag=enhanced_state.tag
+            )
+            regular_states[pc] = regular_state
+        
+        return regular_states
+    except Exception as e:
+        sys.stderr.write(f"[bounded] relational analysis failed, falling back: {e}\n")
+        return bounded_run(prog, depth, init_env)
+
 def compute_scores(method_text: str, per_pc: Dict[int, AState], prog: 'Program')->Tuple[int,int,int,int,int,int]:
     src = method_text
     divide = 5; asserr = 5; oob = 5; npe = 5; inf = 5
@@ -428,9 +459,9 @@ def compute_scores(method_text: str, per_pc: Dict[int, AState], prog: 'Program')
 
 INFO_LINES = (
     "Bounded AI",
-    "0.2.0",
-    "DTU JPAMB Group",
-    "static,ai,bounded,taint",
+    "0.3.0",
+    "Group 20",
+    "static,ai,bounded,taint,relational",
     "no",
 )
 
@@ -556,14 +587,30 @@ def main():
         na = importlib.import_module("novel_abstractions")
         na = importlib.reload(na)
         sys.stderr.write(f"[bounded] using novel_abstractions from: {getattr(na, '__file__', '?')}\n")
-        states, loop_tracker = na.enhanced_bounded_run(
-            prog,
-            depth=8,
-            init_env=initial_env_from_params(params),
-            Taint=Taint,
-            AState=AState,
-            step_one_func=step_one
-        )
+        
+        # Try to use relational domain WITH novel abstractions if both available
+        if _has_relational_domain:
+            sys.stderr.write("[bounded] using relational domain + novel abstractions\n")
+            # Use novel_abstractions but with our enhanced step function
+            states, loop_tracker = na.enhanced_bounded_run(
+                prog,
+                depth=8,
+                init_env=initial_env_from_params(params),
+                Taint=Taint,
+                AState=EnhancedAState,  # Use enhanced state
+                step_one_func=lambda prog, s: enhanced_step_one(prog, s, step_one)  # Use enhanced stepping
+            )
+        else:
+            sys.stderr.write("[bounded] using novel_abstractions only\n")
+            states, loop_tracker = na.enhanced_bounded_run(
+                prog,
+                depth=8,
+                init_env=initial_env_from_params(params),
+                Taint=Taint,
+                AState=AState,
+                step_one_func=step_one
+            )
+        
         scores_dict = na.compute_enhanced_scores(method_text, states, prog, loop_tracker)
         ai_ok, ai_div0, ai_asrt, ai_oob, ai_npe, ai_inf = (
             int(scores_dict.get("ok", 0)),
@@ -622,6 +669,33 @@ def main():
         
         enhanced_used = True
         sys.stderr.write("[bounded] enhanced path OK\n")
+    except Exception as e:
+        sys.stderr.write(f"[bounded] enhanced path failed: {e}\n")
+        import traceback
+        sys.stderr.write(traceback.format_exc() + "\n")
+        states = bounded_run(prog, depth=5, init_env=initial_env_from_params(params))
+        # If we have syntactic analysis, combine it with basic AI
+        if syntax_hints:
+            syn_ok, syn_div, syn_asrt, syn_oob, syn_npe, syn_inf = (
+                100 - max(syntax_hints.get('divide', 5), syntax_hints.get('assert', 5), 
+                         syntax_hints.get('oob', 5), syntax_hints.get('npe', 5), syntax_hints.get('inf', 5)),
+                syntax_hints.get('divide', 5),
+                syntax_hints.get('assert', 5),
+                syntax_hints.get('oob', 5),
+                syntax_hints.get('npe', 5),
+                syntax_hints.get('inf', 5),
+            )
+            ai_ok, ai_div0, ai_asrt, ai_oob, ai_npe, ai_inf = compute_scores(method_text, states, prog)
+            div0 = max(syn_div, ai_div0)
+            asrt = max(syn_asrt, ai_asrt)
+            oob = max(syn_oob, ai_oob)
+            npe = max(syn_npe, ai_npe)
+            inf = max(syn_inf, ai_inf)
+            worst = max(div0, asrt, oob, npe, inf)
+            ok = max(0, 100 - worst)
+        else:
+            ok, div0, asrt, oob, npe, inf = compute_scores(method_text, states, prog)
+
     except Exception as e:
         sys.stderr.write(f"[bounded] enhanced path failed: {e}\n")
         import traceback
