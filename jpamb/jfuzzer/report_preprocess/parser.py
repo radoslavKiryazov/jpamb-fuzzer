@@ -143,12 +143,34 @@ class Parser:
         results = []
         pass
         return results
+    
+    def _parse_csv_pmd(self) -> List[Report_Item]:
+        """
+        Reads the pmd_results.csv file.
+        Header for pmd_results.csv:
+        file,class,methode,beginline,endline,begincolumn,endcolumn,rule,ruleset,package,text
+        """
 
+        results : List[Report_Item] = []
+
+        with open(self.filepath, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+
+            for row in reader:
+                if not row.get("methode"):
+                    continue
+
+                class_name = jvm.AbsMethodID.decode(row["class"])
+                method_name = jvm.AbsMethodID.decode(row["methode"])
+                rule = jvm.AbsMethodID.decode(row["rule"])
+
+                result.append(Report_Item())
+            
 
     def _parse_csv(self) -> List[Report_Item]:
         """
         CSV expected format (example):
-
+        
         method,* ,assertion error,divide by zero,null pointer,ok,out of bounds
         jpamb.cases.Arrays.arrayOutOfBounds:()V,0,1,0,0,0,0
         """
