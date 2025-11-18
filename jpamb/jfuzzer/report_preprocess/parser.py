@@ -35,6 +35,7 @@ class Report_Item:
     """
 
     methodid: jvm.Absolute[jvm.MethodID]
+    classid: str
     # input: Input
     result: str
 
@@ -144,6 +145,8 @@ class Parser:
         pass
         return results
     
+
+    # Parsing the output of the PMD analyser on the OWASP java suite
     def _parse_csv_pmd(self) -> List[Report_Item]:
         """
         Reads the pmd_results.csv file.
@@ -160,11 +163,13 @@ class Parser:
                 if not row.get("methode"):
                     continue
 
-                class_name = jvm.AbsMethodID.decode(row["class"])
                 method_name = jvm.AbsMethodID.decode(row["methode"])
+                class_name = jvm.AbsMethodID.decode(row["class"])
                 rule = jvm.AbsMethodID.decode(row["rule"])
 
-                result.append(Report_Item())
+                results.append(Report_Item(methodid=method_name, classid=class_name, result=rule))
+
+        return results
             
 
     def _parse_csv(self) -> List[Report_Item]:
@@ -185,6 +190,7 @@ class Parser:
                     continue
 
                 method_name = jvm.AbsMethodID.decode(row["method"])
+                class_name= str(row["class", ])
                 # method_name = jvm.Absolute(row["method"])
                   # count occurrences
                 error_counts = {
@@ -199,7 +205,7 @@ class Parser:
                 # choose the one with the largest count
                 selected_error = max(error_counts, key=error_counts.get)
 
-                results.append(Report_Item(methodid=method_name, result=selected_error))
+                results.append(Report_Item(methodid=method_name, classid=class_name, result=selected_error))
 
         return results
 
