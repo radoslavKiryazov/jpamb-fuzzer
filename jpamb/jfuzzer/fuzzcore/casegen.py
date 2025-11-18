@@ -1,6 +1,12 @@
 import random
 import copy
 import string
+from jpamb.jvm.base import Value, Int, Char, Boolean, Array
+from jpamb.jfuzzer.report_preprocess.parser import Report_Item
+from jpamb.model import Input
+from jpamb import jvm
+from typing import List
+from jpamb.jvm.base import Type
 
 
 #pip install libfuzzer (for next iteration)
@@ -9,9 +15,9 @@ class CaseGenerator:
     """
     Generates fuzzing cases for given method identifiers.
     """
-    def __init__(self, target) -> None:
+    def __init__(self, Report_Item) -> None:
         # target is a base as in suite.case
-        self.target = target
+        self.target = Report_Item
 
     GEN_BATCH_SIZE = 20
     GEN_STRATEGY = {
@@ -80,17 +86,17 @@ class CaseGenerator:
         return random.choice(mutations)(d)
     
     
-    def generate_new_cases(self, count = GEN_BATCH_SIZE):
+    def generate_new_cases(self, count = GEN_BATCH_SIZE) -> List[Input]:
         """
         Generate new fuzzing cases for the given method identifier.
         """
         cases = []
-        for i in range(count):
-            case = f"case_{i}" # Placeholder for actual case generation logic;
-            cases.append(case)
-        return cases
+        return [
+            Input((Value.int(0),)),
+            Input((Value.int(0),)),
+        ]
     
-
+    
     def generate_mutated_cases(self, count = GEN_BATCH_SIZE):
         """
         Generate mutated fuzzing cases based on a base case.
@@ -100,7 +106,7 @@ class CaseGenerator:
 
         mutated_cases = []
         for i in range(count):
-            mutated_case = self._mutate(base_case)
+            mutated_case = self._mutate(5)
             mutated_cases.append(mutated_case)
         return mutated_cases
 

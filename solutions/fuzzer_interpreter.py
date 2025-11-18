@@ -412,40 +412,40 @@ def step(state: State) -> State | str:
         # Return (int or void)
                 # Return (int or void)
                 # Return (int or void)
+                # ----- RETURN for ANY return type (int, array, reference, void) -----
         case _ if name == "return":
-            is_int_ret = is_returning_int(op)
+            # op.type is:
+            #   - None  for void-return methods (V)
+            #   - jvm.Type (Int, Reference, Array, ...) for value-returning methods
+            ret_type = getattr(op, "type", None)
+            returns_value = ret_type is not None
 
             # Pop current frame (callee)
             state.frames.pop()
 
             if state.frames:
                 # ---- CASE 1: Returning to a caller ----
-
                 caller = state.frames.peek()
 
-                if is_int_ret:
-                    v1 = frame.stack.pop()
-                    caller.stack.push(v1)
+                if returns_value:
+                    # Return *whatever* is on top of the callee stack:
+                    # int, array, reference, etc.
+                    ret_val = frame.stack.pop()
+                    caller.stack.push(ret_val)
 
-                # IMPORTANT:
-                # Caller.pc was already incremented in invoke.
-                # Do NOT increment it here.
-
+                # Caller.pc was already advanced in the invoke handler.
                 return state
 
             else:
-                # ---- CASE 2: Top-level return ----
+                # ---- CASE 2: Top-level method finished ----
+                if returns_value and frame.stack.items:
+                    # Discard top value (jpamb doesn't care about result at top level),
+                    # but we must keep stack consistent.
+                    _ = frame.stack.pop()
 
-                if is_int_ret:
-                    # pop return value but jpamb ignores int return values
-                    _ = frame.stack.items.pop() if frame.stack.items else None
-
-                # For top-level return we MUST increment pc to avoid re-running the same return
+                # Advance PC to avoid re-running the same return instruction
                 frame.pc += 1
-
                 return "ok"
-
-
 
         # Get / GetStatic (we only need static $assertionsDisabled)
         case _ if name in ("getstatic", "get"):
