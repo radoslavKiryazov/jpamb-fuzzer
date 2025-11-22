@@ -6,8 +6,8 @@ from loguru import logger
 from jpamb.jvm.opcode import ArrayLoad, ArrayStore, NewArray, ArrayLength
 
 
-logger.remove()
 logger.add(sys.stderr, format="[{}] {}".format("{level}", "{message}"))
+logger.remove()
 
 methodid, input = jpamb.getcase()
 
@@ -535,10 +535,7 @@ def step(state: State) -> State | str:
             frame.pc += 1
             state.frames.push(new_frame)
             return state
-
-
-
-
+        
         # Throw (athrow)
         case _ if name == "throw":
             ex = frame.stack.pop()

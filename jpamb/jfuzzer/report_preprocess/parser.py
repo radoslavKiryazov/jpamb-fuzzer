@@ -1,7 +1,6 @@
 import json
 import os
 import csv
-import jpamb
 import re
 from pathlib import Path
 from typing import List, Dict, Any
@@ -35,7 +34,7 @@ class Report_Item:
     """
 
     methodid: jvm.Absolute[jvm.MethodID]
-    classid: str
+    classname: str
     # input: Input
     result: str
 
@@ -135,19 +134,9 @@ class Parser:
         else:
             raise ValueError(f"Unsupported file format: {self.extension}")
                 
-
-    #TODO CHANGE TO MATCH TXT
-    def _parse_txt(self) -> List[Dict[str, Any]]:
-        """
-        Parse .txt formatted results.
-        """
-        results = []
-        pass
-        return results
-    
-
+                
     # Parsing the output of the PMD analyser on the OWASP java suite
-    def _parse_csv_pmd(self) -> List[Report_Item]:
+    def _parse_csv(self) -> List[Report_Item]:
         """
         Reads the pmd_results.csv file.
         Header for pmd_results.csv:
@@ -156,77 +145,73 @@ class Parser:
 
         results : List[Report_Item] = []
 
-        with open(self.filepath, 'r', encoding='utf-8') as f:
+        with open(self.file_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
 
             for row in reader:
                 if not row.get("methode"):
                     continue
-
-                method_name = jvm.AbsMethodID.decode(row["methode"])
-                class_name = jvm.AbsMethodID.decode(row["class"])
-                rule = jvm.AbsMethodID.decode(row["rule"])
-
-                results.append(Report_Item(methodid=method_name, classid=class_name, result=rule))
-
-        return results
-            
-
-    def _parse_csv(self) -> List[Report_Item]:
-        """
-        CSV expected format (example):
-        
-        method,* ,assertion error,divide by zero,null pointer,ok,out of bounds
-        jpamb.cases.Arrays.arrayOutOfBounds:()V,0,1,0,0,0,0
-        """
-
-        results: List[Report_Item] = []
-
-        with open(self.file_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-
-            for row in reader:
-                if not row.get("method"):
-                    continue
-
-                method_name = jvm.AbsMethodID.decode(row["method"])
-                class_name= str(row["class", ])
-                # method_name = jvm.Absolute(row["method"])
-                  # count occurrences
-                error_counts = {
-                    # "infinite loop": int(row["*"]),
-                    "assertion error": int(row["assertion error"]),
-                    "divide by zero": int(row["divide by zero"]),
-                    "null pointer": int(row["null pointer"]),
-                    "ok": int(row["ok"]),
-                    "out of bounds": int(row["out of bounds"]),
-                }   
                 
-                # choose the one with the largest count
-                selected_error = max(error_counts, key=error_counts.get)
+                row_file = row["file"]
+                method_class = row["class"]
+                package = row["package"]
+                method_name = row["methode"];
+                
+                #LOCATION EXTRACTION MAY BE USEFUL LATER, when we use start by looking at the Report_item
+                method_beginline = row["beginline"]
+                method_endline = row["endline"]
+                method_begincolumn = row["begincolumn"]
+                method_endcolumn = row["endcolumn"]
+               
+                rule = row["rule"] 
+                ruleset = row["ruleset"]
+                
+                text = row["text"]
+                class_name = row["class"];
+                
+                full_method_str = f"{package}.{method_class}.{method_name}"
+                decoded_method = jvm.AbsMethodID.decode(full_method_str)
+                
+                report_item = Report_Item(methodid=decoded_method, classname=class_name ,result=rule)
+                print (f"FINAL REPORT ITEM {report_item}")
+                results.append(report_item)
+                
+                # print("---- ROW DEBUG ----")
+                # print(f"file           : {row_file}")
+                # print(f"class          : {method_class}")
+                # print(f"package        : {package}")
+                # print(f"methode        : {method_name}")
+                # print(f"beginline      : {method_beginline}")
+                # print(f"endline        : {method_endline}")
+                # print(f"begincolumn    : {method_begincolumn}")
+                # print(f"endcolumn      : {method_endcolumn}")
+                # print(f"rule           : {rule}")
+                # print(f"ruleset        : {ruleset}")
+                # print(f"text           : {text}")
+                # print("--------------------\n")
+                
+                
+                
+                # print(f"METHOD FULL {method_full}")
+                
+                
+                # print(f"METHOD NAME {method_name}")
 
-                results.append(Report_Item(methodid=method_name, classid=class_name, result=selected_error))
+                # method_name = jvm.AbsMethodID.decode(row["methode"])
+                # class_name = jvm.AbsMethodID.decode(row["class"])
+                # rule = jvm.AbsMethodID.decode(row["rule"])
+
+                # results.append(Report_Item(methodid=method_name, classid=class_name, result=rule))
 
         return results
-
-
-    #TODO FIX THIS TO MATCH JSON
-    def _parse_json(path:str) -> List[Dict[str, Any]]:
-        """
-        Parse .json formatted results.
-        """
-        data = []
-        pass
-        return data
-    
     
 if __name__ == "__main__":
-    file_path = "distributions.csv"
+    file_path = "distributions_in_pmd.csv"  # Replace with your actual file path
 
     if not os.path.exists(file_path):
         print(f"⚠️ File not found: {file_path}")
     else:
         parser = Parser(file_path)   # ✅ create an instance of your Parser
         parsed = parser.parse()      # ✅ call the instance method
-        print("\n✅ Parsed Results (JSON formatted):")
-        print(json.dumps(parsed, indent=4))
+        # parsed["methoid"]
+        print(parsed[0].methodid)  # ✅ access the parsed data

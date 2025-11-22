@@ -1,119 +1,194 @@
 import random
 import copy
 import string
-from jpamb.jvm.base import Value, Int, Char, Boolean, Array
-from jpamb.jfuzzer.report_preprocess.parser import Report_Item
-from jpamb.model import Input
-from jpamb import jvm
 from typing import List
-from jpamb.jvm.base import Type
+
+from jpamb import jvm
+from jpamb.jvm.base import (
+    Value, Int, Boolean, Char, Array, Type,
+)
+from jpamb.model import Input
+from jpamb.jfuzzer.report_preprocess.parser import Report_Item
 
 
-#pip install libfuzzer (for next iteration)
+class SignatureHandler:
+    """
+    JPAMB-native signature handler.
+    No string parsing.
+    """
 
+    def __init__(self, abs_methodid: jvm.AbsMethodID):
+        # abs_methodid.extension is a MethodID object!!!!!!!!
+        method = abs_methodid.extension
+
+        self.param_types = list(method.params._elements)
+        self.return_type = method.return_type
+
+        print("[DEBUG] JPAMB param types:", self.param_types)
+
+    def values_for_type(self, t: Type):
+        """Return example Python values for JPAMB types"""
+
+        # int
+        if isinstance(t, Int):
+            return [0, 1, -1, 42, 1337]
+
+        # boolean
+        if isinstance(t, Boolean):
+            return [True, False]
+
+        # char
+        if isinstance(t, Char):
+            return ["a", "b", "Z"]
+
+        # arrays
+        if isinstance(t, Array):
+            elem = t.contains
+
+            if isinstance(elem, Int):
+                return [[], [1], [1, 2, 3], [-1, 0, 1]]
+
+            if isinstance(elem, Char):
+                return [["a"], ["a","b","c"]]
+
+            return [[]]
+
+        # fallback
+        return [None]
+
+    def generate_seeds(self):
+        """Return all valid combinations"""
+        from itertools import product
+
+        if not self.param_types:
+            return [()]
+
+        value_lists = [self.values_for_type(t) for t in self.param_types]
+        return list(product(*value_lists))
+
+
+#  Case Generator now with signatures
 class CaseGenerator:
-    """
-    Generates fuzzing cases for given method identifiers.
-    """
-    def __init__(self, Report_Item) -> None:
-        # target is a base as in suite.case
-        self.target = Report_Item
-
     GEN_BATCH_SIZE = 20
-    GEN_STRATEGY = {
-        "default": "Combination of new and mutated inputs.",
-        "new": "Generate entirely new inputs based on method signature.",
-        "mutate": "Mutate existing valid inputs to create new test cases.", 
-        "llm": "Use large language models to generate sophisticated inputs."
-    }
-    
 
-    def _mutate(self, base_input):
-        """
-        Apply controlled mutations depending on the data type.
-        """
-        data = copy.deepcopy(base_input)
-        
-        if(isinstance(data, int)):
-            self._mutate_int(data)
-        elif(isinstance(data, str)):
-            self._mutate_str(data)
-        elif(isinstance(data, list)):
-            self._mutate_list(data)
-        elif(isinstance(data, dict)):
-            self._mutate_dict(data)
-        elif(isinstance(data, float)):
-            self._mutate_float(data)
-        else:
-         return data;
-   
+    def __init__(self, report_item: Report_Item) -> None:
+        self.target = report_item
+        print(f"[DEBUG] Initializing CaseGenerator with Report_Item: {report_item}")
+        self.signature = SignatureHandler(report_item.methodid)
+
 
     def _mutate_int(self, value):
-        mutations = [
-            lambda x: x + random.randint(-10, 10),
-            lambda x: x * 2,
-            lambda x: random.randint(-99999, 99999)
-        ]
-        return random.choice(mutations)(value)
-
-    
-    def _mutate_str(self, value):
-        mutations = [
-            lambda s: s + random.choice(string.ascii_letters),
-            lambda s: s.upper(),
-            lambda s: s + ''.join(random.choices(string.punctuation, k=2)),
-        ]
-        return random.choice(mutations)(value)
-
-    
-    def _mutate_list(self, value):
-        return value + 1;
-
-    
-    def _mutate_float(self, value):
-        mutations = [
-            lambda x: x + random.uniform(-1.0, 1.0),
-            lambda x: x * random.uniform(0.5, 2.0),
-        ]
-        return random.choice(mutations)(value)
-
-    
-    def _mutate_dict(self, d):
-        d = copy.deepcopy(d)
-        mutations = [
-            lambda d: d.update({f"new_{random.randint(0, 100)}": random.randint(0, 100)}) or d,
-        ]
-        return random.choice(mutations)(d)
-    
-    
-    def generate_new_cases(self, count = GEN_BATCH_SIZE) -> List[Input]:
-        """
-        Generate new fuzzing cases for the given method identifier.
-        """
-        cases = []
-        return [
-            Input((Value.int(0),)),
-            Input((Value.int(0),)),
-        ]
-    
-    
-    def generate_mutated_cases(self, count = GEN_BATCH_SIZE):
-        """
-        Generate mutated fuzzing cases based on a base case.
-        """
-
-        # base case is self.target
-
-        mutated_cases = []
-        for i in range(count):
-            mutated_case = self._mutate(5)
-            mutated_cases.append(mutated_case)
-        return mutated_cases
+        return value + random.randint(-5, 5)
 
 
-    def update_strategy(self, fuzzing_result=None, strategy_params=GEN_STRATEGY["default"]):
-        """
-        Update the case generation strategy based on previous fuzzing results.
-        """
-        # Placeholder for actual strategy update logic
-        pass
+    def generate_new_cases(self, count=GEN_BATCH_SIZE) -> List[Input]:
+        seeds = self.signature.generate_seeds()
+        out = []
+
+        for seed in seeds[:count]:
+            jp_values = []
+
+            for (t, v) in zip(self.signature.param_types, seed):
+
+                if isinstance(t, Int):
+                    jp_values.append(Value.int(v))
+
+                elif isinstance(t, Boolean):
+                    jp_values.append(Value.boolean(v))
+
+                elif isinstance(t, Char):
+                    jp_values.append(Value.char(v))
+
+                elif isinstance(t, Array):
+                    elem = t.contains
+
+                    if isinstance(elem, Int):
+                        jp_values.append(Value.array(Int(), v))
+
+                    elif isinstance(elem, Char):
+                        jp_values.append(Value.array(Char(), v))
+
+                else:
+                    print("[WARN] Unsupported type:", t)
+
+            out.append(Input(tuple(jp_values)))
+
+        return out
+
+
+    def generate_mutated_cases(self, count=GEN_BATCH_SIZE):
+        seeds = self.signature.generate_seeds()
+        out = []
+
+        for _ in range(count):
+            base = list(random.choice(seeds))
+            mutated = []
+
+            for (t, v) in zip(self.signature.param_types, base):
+
+                if isinstance(t, Int):
+                    mutated.append(self._mutate_int(v))
+
+                elif isinstance(t, Boolean):
+                    mutated.append(not v)
+
+                elif isinstance(t, Char):
+                    mutated.append("X")
+
+                elif isinstance(t, Array):
+                    if len(v) > 0:
+                        mutated.append(v + [v[-1]])
+                    else:
+                        mutated.append([1])
+
+                else:
+                    mutated.append(v)
+
+            jp_values = []
+
+            for (t, v) in zip(self.signature.param_types, mutated):
+
+                if isinstance(t, Int):
+                    jp_values.append(Value.int(v))
+
+                elif isinstance(t, Boolean):
+                    jp_values.append(Value.boolean(v))
+
+                elif isinstance(t, Char):
+                    jp_values.append(Value.char(v))
+
+                elif isinstance(t, Array):
+                    elem = t.contains
+
+                    if isinstance(elem, Int):
+                        jp_values.append(Value.array(Int(), v))
+
+                    elif isinstance(elem, Char):
+                        jp_values.append(Value.array(Char(), v))
+
+            out.append(Input(tuple(jp_values)))
+
+        return out
+
+
+# test for the hood
+if __name__ == "__main__":
+
+    method_id = jvm.AbsMethodID.decode("jpamb.cases.Arrays.arraySumIsLarge:([I)V")
+
+    report_item = Report_Item(
+        methodid=method_id,
+        classname="Arrays",
+        result="ok"
+    )
+
+    case_gen = CaseGenerator(report_item)
+
+    print("Param types:", case_gen.signature.param_types)
+    print("Seeds:", case_gen.signature.generate_seeds())
+
+    for case in case_gen.generate_new_cases(5):
+        print(case.encode())
+
+    for case in case_gen.generate_mutated_cases(5):
+        print(case.encode())

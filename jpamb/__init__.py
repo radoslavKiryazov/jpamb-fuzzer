@@ -43,10 +43,10 @@ def printinfo(
     tags: list[str],
     for_science: bool,
 ) -> NoReturn:
-    print(name)
-    print(version)
-    print(group)
-    print(",".join(tags))
+    # print(name)
+    # print(version)
+    # print(group)
+    # print(",".join(tags))
     if for_science:
         import platform
 

@@ -18,7 +18,7 @@ from jpamb.logger import log
 from jpamb.jfuzzer.fuzzcore import CaseGenerator
 from jpamb.jfuzzer.report_preprocess.parser import Parser
 from jpamb.jfuzzer.result_analysis.analyzer import analyzer
-from jpamb.jfuzzer.util.saver import saver
+from jpamb.jfuzzer.util.oracle import Oracle
 
 import subprocess
 import dataclasses
@@ -146,20 +146,13 @@ def saver(item, round_num, case, result, filename="data_log.csv"):
         result: The outcome or result.
         filename (str): The name of the local file to save the data to.
     """
-    # 1. Prepare the data as a single string
     data_line = f"{item},{round_num},{case},{result}\n"
 
-    # 2. Open the file in 'append' mode ('a')
-    # If the file doesn't exist, it will be created.
-    # The 'with' statement ensures the file is automatically closed.
     try:
-        with open(filename, 'a') as file:
-            # 3. Write the data line to the file
+        with open(filename, "a") as file:
             file.write(data_line)
 
-        # Optional: Print a confirmation
         print(f"Data saved successfully to {os.path.abspath(filename)}")
-
     except IOError as e:
         print(f"An error occurred while writing to the file: {e}")
 
@@ -308,9 +301,7 @@ def test(suite, program, report, filter, fail_fast, with_python, timeout):
             continue
 
         with r.context(f"Case {methodid}"):
-            # First run the analyzer on the methodid
             out = r.run(program + (str(methodid),), timeout=timeout)
-            # Then parse the output of the analyzer by passing it to the Java target program via model.Response
             response = model.Response.parse(out)
             with r.context("Results"):
                 for k, v in sorted(response.predictions.items()):
@@ -481,13 +472,13 @@ def evaluate(ctx, program, report, timeout, iterations, with_python):
         for i in range(iterations):
             log.info(f"Running on {methodid}, iter {i}")
             r1 = calibrate()
-            out, time = run(
+            out, time_ns = run(
                 program + (methodid.encode(),), logerr=log.debug, timeout=timeout
             )
             r2 = calibrate()
             response = model.Response.parse(out)
             score = response.score(correct)
-            relative = math.log10(time / (r1 + r2) * 2)
+            relative = math.log10(time_ns / (r1 + r2) * 2)
 
             result = {k: v.wager for k, v in response.predictions.items()}
 
@@ -496,7 +487,7 @@ def evaluate(ctx, program, report, timeout, iterations, with_python):
                     "iteration": i,
                     "response": result,
                     "score": score,
-                    "time": time,
+                    "time": time_ns,
                     "relative": relative,
                     "calibrates": [r1, r2],
                 }
@@ -504,7 +495,7 @@ def evaluate(ctx, program, report, timeout, iterations, with_python):
 
             _score += score
             _relative += relative
-            _time += time
+            _time += time_ns
 
         bymethod[str(methodid)] = {
             "score": _score / iterations,
@@ -585,7 +576,7 @@ def build(suite, compile, decompile, document, test):
             class_opcodes[str(case.methodid.classname).split(".")[-1]] = set()
             list_ops = []
             for opcode in suite.method_opcodes(case.methodid):
-                index = opcode.mnemonic()  # opcode.real().split()[0]
+                index = opcode.mnemonic()
                 list_ops.append(index)
 
                 opcode_urls[index] = (
@@ -786,7 +777,6 @@ def plot(ctx, report, directory):
         import matplotlib.patches as mpatches
 
         class MidpointNormalize(colors.Normalize):
-            # Normalise the colorbar so that diverging bars work there way either side from a prescribed midpoint value)
             def __init__(self, vmin=None, vmax=None, midpoint=None, clip=True):
                 self.midpoint = midpoint
                 colors.Normalize.__init__(self, vmin, vmax, clip)
@@ -835,7 +825,6 @@ def plot(ctx, report, directory):
 
     def plot_directory(scores, times, labels):
         class MidpointNormalize(colors.Normalize):
-            # Normalise the colorbar so that diverging bars work there way either side from a prescribed midpoint value)
             def __init__(self, vmin=None, vmax=None, midpoint=None, clip=True):
                 self.midpoint = midpoint
                 colors.Normalize.__init__(self, vmin, vmax, clip)
@@ -896,7 +885,6 @@ def plot(ctx, report, directory):
 
 
 @cli.command()
-# @click.argument("alarm_file", nargs=-1, default=["jfuzzer/report_preprocess/distributions.csv"])
 @click.option(
     "--with-python/--no-with-python",
     "-W/-noW",
@@ -926,23 +914,18 @@ def plot(ctx, report, directory):
     type=click.File(mode="w"),
     help="A file to write the report to. (Good for golden testing)",
 )
-# @click.argument("PROGRAM", nargs=-1)
 @click.pass_obj
 def jfuzz(suite, report, filter, timeout, stepwise, with_python):
     """run fuzzer on alarm reports generated by jpamb analyze."""
 
-    alarm_file = "jpamb/jfuzzer/report_preprocess/distributions.csv"
-    # 1. load the config, initialization
-    # config = {}
+    alarm_file = "jpamb/jfuzzer/report_preprocess/distributions_in_pmd.csv"
     CAMPAIGN_ROUNDS = 10
 
     # 2. load the fuzzer (interpreter)
-    interpreter_program =  "solutions/fuzzer_interpreter.py"
-    program = resolve_cmd((interpreter_program, ), with_python) 
+    interpreter_program = "solutions/fuzzer_interpreter.py"
+    program = resolve_cmd((interpreter_program,), with_python)
 
-    # 3. load the report, pre-process, etc.        
-    # Load the report of alarms
-    # alarms should be a list of cases as in parser.Report_Items
+    # 3. load the report, pre-process, etc.
     p = Parser(alarm_file)
     alarms = p.parse()
 
@@ -959,9 +942,11 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
             last_campaign = None
         except IOError:
             last_campaign = None
-            
-            
+
     print(f"ALARMS {alarms[0]}")
+
+    # collect all fuzzing results for analysis
+    fuzzing_result = []
 
     # 4. run the fuzzer main loop, and classify results
     for item in alarms:
@@ -976,62 +961,81 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
 
         start = time.time()
         casegen_time = []
+
         with r.context(f"Case {item}"):
-            # For each fuzzing target we run several rounds of fuzzing (campaign_rounds). For each round of fuzzing campaign, we generate a batch of test cases. Every round we update the generative strategy based on previous results and generate new test cases for next round.
-
             case_generator = CaseGenerator(item)
-            last_round_fuzzing_result = {}
 
-            print(f"======== METHODID{item.methodid}========")
+            # print(f"======== METHODID {item.methodid} ========")
 
             for round in range(CAMPAIGN_ROUNDS):
+                oracle = Oracle(item.result)
+                target_hit_this_round = False
 
-                case_generator.update_strategy(last_round_fuzzing_result)
-
-                # t1 = time.time()
                 fuzzing_test_cases = case_generator.generate_new_cases()
-                print(f"fuzzing cases", fuzzing_test_cases)
-                # t2 = time.time()
-                # casegen_time[round] = t2 - t1
+                # print("fuzzing cases", fuzzing_test_cases)
 
-                fuzzing_result = {}
-                print(f"Starting round {round} for issue {item.methodid} with case {fuzzing_test_cases}")
+                print(
+                    f"Starting round {round} for issue {item.methodid} "
+                    f"with {len(fuzzing_test_cases)} cases"
+                )
 
                 for case in fuzzing_test_cases:
+                    print(f"RUNNN {case.encode()}, {item.methodid.encode()}")
 
-                    print(f"RUNNN {case}, {item.methodid.encode()}")
                     try:
                         out = r.run(
                             program + (item.methodid.encode(), case.encode()),
                             timeout=timeout,
                         )
-                        
+                        print(f"result {out}")
                         result = out.splitlines()[-1].strip()
-                        # im not sure about this syntax
-                        fuzzing_result.append(out)
-
                     except subprocess.TimeoutExpired:
                         result = "*"
                     except subprocess.CalledProcessError as e:
                         log.error(e)
                         result = "failure"
-                        
-                    # except timeout_decorator.TimeoutError as e:
-                    #     print(f"Fuzzing timed out for issue {item.method_id}: {e}")
-                    #     fuzzing_result = {"status": "TO"}
-                    #     continue
 
-                    saver(item, round, case, result)
+                    classification = oracle.classify(result)
 
-                    r.output(f"Original report: {item.result!r} \n round {round} result: {result!r}")
+                    # aggregate for later analysis
+                    fuzzing_result.append(
+                        {
+                            "method": str(item.methodid),
+                            "round": round,
+                            "input": case.encode(),
+                            "output": result,
+                            "classification": classification,
+                        }
+                    )
+
+                    saver(item, round, case.encode(), classification)
+
+                    r.output(
+                        f"Original report: {item.result!r} \n"
+                        f"round {round} result: {result!r} "
+                        f"({classification})"
+                    )
+
                     if item.result == result:
                         alarm_hit += 1
-                    elif stepwise:
+
+                    if stepwise and item.result != result:
                         with open(".jfuzz-stepwise", "w") as f:
+                            # assumes item has encode(); if not, adjust accordingly
                             f.write(item.encode())
                         sys.exit(-1)
-                
-                last_round_fuzzing_result = fuzzing_result
+
+                    if classification == "TARGET_HIT":
+                        print("[FUZZER] Target alarm reproduced. Stopping this round.")
+                        target_hit_this_round = True
+                        break
+
+                if target_hit_this_round:
+                    print(
+                        "[FUZZER] Full stop: target alarm reproduced. "
+                        "Ending fuzzing for this issue."
+                    )
+                    break
 
         end = time.time()
         print(f"Fuzzing for issue {item.methodid} completed in {end - start} seconds.")
@@ -1039,142 +1043,10 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
 
         Path(".jfuzz-stepwise").unlink(True)
 
-        # print(f"Fuzzing for issue {item.method_id} completed. Time elapsed: {end - start} seconds. Time for case generation per round: {casegen_time}")
-
-    # with open(log_location, "a") as fp:
-    #     fp.write(json.dumps(fuzz_data)+"\n")
-
-
-    # classify results
-    # 
-    # fuzzing_result["status"] can be:
-    #   C - There is at least one crash/buffer overflow at warning location
-    #   PFP - There is no crash/buffer overflow at the warning location, but the line is executed - Possible False Positive
-    #   NR - The warning line is not executed - Not Reachable
-    #   NC - The slice is not compiled - Not Compiled
-    #   TO - Timeout during fuzzing
+    # classify results with analyzer
     pruned_results = analyzer.analyze_results(fuzzing_result)
+    log.info(f"Analyzer produced results: {pruned_results}")
 
-
-
-# @cli.command()
-# # @click.option(
-# #     "--with-python/--no-with-python",
-# #     "-W/-noW",
-# #     help="the analysis is a python script, which should run in the same interpreter as jpamb.",
-# #     default=None,
-# # )
-# @click.option(
-#     "--stepwise / --no-stepwise",
-#     help="continue from last failure",
-# )
-# @click.option(
-#     "--timeout",
-#     show_default=True,
-#     default=2.0,
-#     help="timeout in seconds.",
-# )
-# @click.option(
-#     "--filter",
-#     "-f",
-#     help="A regular expression which filter the methods to run on.",
-#     callback=re_parser,
-# )
-# @click.option(
-#     "--report",
-#     "-r",
-#     default="-",
-#     type=click.File(mode="w"),
-#     help="A file to write the report to. (Good for golden testing)",
-# )
-# # @click.argument("PROGRAM", nargs=-1)
-# @click.pass_obj
-# def testload(suite, report, filter, timeout, stepwise):
-#     interpreter_program =  "solutions/fuzzer_interpreter.py"
-        
-#     program = resolve_cmd((interpreter_program, ), "-W") 
-#     #PROGRAM ('.venv/bin/python', 'solutions/fuzzer_interpreter.py')
-    
-#     r = Reporter(report)
-
-#     last_case = None
-#     if stepwise:
-#         try:
-#             with open(".jpamb-stepwise") as f:
-#                 last_case = model.Case.decode(f.read())
-#         except ValueError as e:
-#             log.warning(e)
-#             last_case = None
-#         except IOError:
-#             last_case = None
-
-#     total = 0
-#     count = 0
-
-#     # from jpamb import Suite as suite
-
-#     for case in suite.cases:
-#         if last_case and last_case != case:
-#             continue
-#         last_case = None
-
-#         if filter and not filter.search(str(case)):
-#             continue
-
-#         with r.context(f"Case {case}"):
-#             try:
-#                 print(f"========={program}==========")
-#                 out = r.run(
-#                     program + (case.methodid.encode(), case.input.encode()),
-#                     timeout=timeout,
-#                 )
-#                 ret = out.splitlines()[-1].strip()
-#             except subprocess.TimeoutExpired:
-#                 ret = "*"
-#             except subprocess.CalledProcessError as e:
-#                 log.error(e)
-#                 ret = "failure"
-#             r.output(f"Expected {case.result!r} and got {ret!r}")
-#             if case.result == ret:
-#                 total += 1
-#             elif stepwise:
-#                 with open(".jpamb-stepwise", "w") as f:
-#                     f.write(case.encode())
-#                 sys.exit(-1)
-#             count += 1
-
-#     Path(".jpamb-stepwise").unlink(True)
-
-#     r.output(f"Total {total}/{count}")
-    
-
-# @cli.command()
-# def testloading():
-#     """
-#     Just print the path to the custom interpreter.
-#     """
-#     from pathlib import Path
-#     import sys
-#     from loguru import logger as log
-
-#     try:
-#         executable = str(Path(sys.executable).relative_to(Path.cwd()))
-#         print(f"Using python executable: {executable}")
-#     except ValueError:
-#         log.warning(
-#             "Python executable outside current directory, might be a misconfiguration. "
-#             "Run the tool with `uv run jpamb ...`."
-#         )
-#         executable = sys.executable
-
-#     # Path to your interpreter script
-#     interpreter_path = Path(__file__).resolve().parents[1] / "solutions" / "fuzzer_interpreter.py"
-
-#     print(f"Interpreter path: {interpreter_path}")
-#     if interpreter_path.exists():
-#         print("Interpreter file FOUND")
-#     else:
-#         print("Interpreter file NOT FOUND")
 
 if __name__ == "__main__":
     cli()
