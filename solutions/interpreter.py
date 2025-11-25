@@ -558,6 +558,8 @@ def step(state: State) -> State | str:
             cls_str = str(clsname).lower().replace("/", ".")
             if "assertionerror" in cls_str:
                 return "assertion error"
+              if "illegalargumentexception" in cls_str:
+                return "illegal argument"
             return "failure"
         
         

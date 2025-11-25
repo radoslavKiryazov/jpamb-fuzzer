@@ -971,7 +971,8 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
                 oracle = Oracle(item.result)
                 target_hit_this_round = False
 
-                fuzzing_test_cases = case_generator.generate_new_cases()
+                # fuzzing_test_cases = case_generator.generate_new_cases()
+                fuzzing_test_cases = case_generator.generate_llm_cases()
                 # print("fuzzing cases", fuzzing_test_cases)
 
                 print(

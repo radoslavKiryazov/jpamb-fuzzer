@@ -16,5 +16,6 @@ public @interface Tag {
     ARRAY,
     RECURSION,
     STDLIB,
+    FUZZ
   }
 }

@@ -1,28 +1,13 @@
-jpamb.cases.TrickyMinimalOpcodes.sumUpTo:(I)I                          (5) -> 15
-jpamb.cases.TrickyMinimalOpcodes.sumUpTo:(I)I                          (0) -> 0
-
-jpamb.cases.TrickyMinimalOpcodes.divAndRem:(II)I                       (10, 2) -> 5
-jpamb.cases.TrickyMinimalOpcodes.divAndRem:(II)I                       (10, 0) -> ArithmeticException
-
+jpamb.cases.TrickyMinimalOpcodes.sumUpTo:(I)I                           (5) -> ok
+jpamb.cases.TrickyMinimalOpcodes.sumUpTo:(I)I                           (0) -> ok
+jpamb.cases.TrickyMinimalOpcodes.divAndRem:(II)I                        (10, 2) -> ok
 jpamb.cases.TrickyMinimalOpcodes.positiveAssert:(I)V                    (1) -> ok
-jpamb.cases.TrickyMinimalOpcodes.positiveAssert:(I)V                    (0) -> AssertionError
-
-jpamb.cases.TrickyMinimalOpcodes.stringLenThenFirstChar:(Ljava/lang/String;)I    ("hello") -> 5
-jpamb.cases.TrickyMinimalOpcodes.stringLenThenFirstChar:(Ljava/lang/String;)I    (null) -> NullPointerException
-
-jpamb.cases.TrickyMinimalOpcodes.conditionalThrow:(Z)I                  (true) -> IllegalArgumentException
-jpamb.cases.TrickyMinimalOpcodes.conditionalThrow:(Z)I                  (false) -> 0
-
-jpamb.cases.TrickyMinimalOpcodes.createAndFill:(I)I                     (3) -> 3
-jpamb.cases.TrickyMinimalOpcodes.createAndFill:(I)I                     (0) -> 0
-
-jpamb.cases.TrickyMinimalOpcodes.naiveMul:(II)I                         (2, 1000000000) -> 2000000000
-jpamb.cases.TrickyMinimalOpcodes.naiveMul:(II)I                         (2, 2000000000) -> overflow -> -1
-
-jpamb.cases.TrickyMinimalOpcodes.dupAndSum:(II)I                        (4, 5) -> 9
-
-jpamb.cases.TrickyMinimalOpcodes.parseAndUnbox:(Ljava/lang/String;)I    ("42") -> 42
-jpamb.cases.TrickyMinimalOpcodes.parseAndUnbox:(Ljava/lang/String;)I    ("notnum") -> NumberFormatException
-
-jpamb.cases.TrickyMinimalOpcodes.evenOddMarker:(I)I                     (10) -> 0
-jpamb.cases.TrickyMinimalOpcodes.evenOddMarker:(I)I                     (11) -> 1
+jpamb.cases.TrickyMinimalOpcodes.positiveAssert:(I)V                    (0) -> assertion error
+jpamb.cases.TrickyMinimalOpcodes.conditionalThrow:(Z)I                  (false) -> ok
+jpamb.cases.TrickyMinimalOpcodes.createAndFill:(I)I                     (3) -> ok
+jpamb.cases.TrickyMinimalOpcodes.createAndFill:(I)I                     (0) -> ok
+jpamb.cases.TrickyMinimalOpcodes.naiveMul:(II)I                         (2, 1000000000) -> ok
+jpamb.cases.TrickyMinimalOpcodes.naiveMul:(II)I                         (2, 2000000000) -> -1
+jpamb.cases.TrickyMinimalOpcodes.dupAndSum:(II)I                        (4, 5) -> ok
+jpamb.cases.TrickyMinimalOpcodes.evenOddMarker:(I)I                     (10) -> ok
+jpamb.cases.TrickyMinimalOpcodes.evenOddMarker:(I)I                     (11) -> ok

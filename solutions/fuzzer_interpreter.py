@@ -713,3 +713,7 @@ for _ in range(1000):
         break
 else:
     print("*")
+output = {
+    "methoid": "string",
+    "inputList": "List[Input]"
+}

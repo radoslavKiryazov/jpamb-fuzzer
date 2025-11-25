@@ -2,13 +2,14 @@ import random
 import copy
 import string
 from typing import List
-from google import genai
+# from google import genai
 from jpamb import jvm
 from jpamb.jvm.base import (
     Value, Int, Boolean, Char, Array, Type,
 )
 from jpamb.model import Input
 from jpamb.jfuzzer.report_preprocess.parser import Report_Item
+import jpamb
 
 
 class SignatureHandler:
@@ -66,7 +67,7 @@ class SignatureHandler:
         value_lists = [self.values_for_type(t) for t in self.param_types]
         return list(product(*value_lists))
 
-
+    
 #  Case Generator now with signatures
 class CaseGenerator:
     GEN_BATCH_SIZE = 20
@@ -79,6 +80,41 @@ class CaseGenerator:
 
     def _mutate_int(self, value):
         return value + random.randint(-5, 5)
+
+
+    def generate_llm_cases(self, count=GEN_BATCH_SIZE) -> List[Input]:
+        import google.generativeai as genai
+        import re
+        genai.configure(api_key="AIzaSyA5c3FlgjoCb8hvOyTye7rMxPoBgfsc-54")
+
+        llm_output_schema = {
+            "ingredients:"
+            
+        }
+        
+
+        model = genai.GenerativeModel(
+            model_name="gemini-2.0-flash",       # or gemini-2.0-pro
+            system_instructions="You are an expert in fuzzing test case generation. You will be given a target program in source code and bytecode. Plus, you will be given the line coverage from last fuzzing test, in the fotmat of bytecode offset. Your task is to generate fuzzing test cases as described by user. Please give the test csaes in the following structure: [input1, input2, ...]. Each input should match the type of the corresponding parameter in the method signature. For example, if the method signature is (int, boolean, char[]), you might generate an input like [42, true, ['a', 'b', 'c']]. Ensure that the generated inputs are valid and can be used directly as test cases for the target program. Also ensure that ",
+            config={
+                "response_mime_type": "application/json",
+                "response_json_schema": llm_output_schema,
+            }
+        )
+
+        src=jpamb.Suite.sourcefile(self.target.methodid)
+        bytecode_src=jpamb.Suite.method_opcodes(self.target.methodid)
+
+        # Regex pattern (non-greedy, dotall)
+        pattern = rf"(?s)\b{re.escape(self.target.methodid)}\s*\([^)]*\)\s*\{{.*?\}}"
+        match = re.search(pattern, src)
+        offsets_bytecode = []
+        
+        response = model.generate_content(
+            f"Please generate {count} fuzzing cases for this code: {match} \\ Please make sure that your fuzzing cases should cover new instruction, and hopefully will triger the expected exception of {self.target.result}. \\ The bytecode of the soruce code is given as {match}, and the codes that's already been covered are shown in these offsets of the bytecode: {offsets_bytecode}"
+        )
+
+        print(response.text)
 
 
     def generate_new_cases(self, count=GEN_BATCH_SIZE) -> List[Input]:
@@ -170,21 +206,22 @@ class CaseGenerator:
 
         return out
     
-    def generate_llm_cases(self, count=GEN_BATCH_SIZE):
-        # client reads api key from the enviroment
-        client = genai.Client(api_key="YOUR_API_KEY")
+    # def generate_llm_cases(self, count=GEN_BATCH_SIZE):
+    #     # client reads api key from the enviroment
+    #     client = genai.Client(api_key="YOUR_API_KEY")
 
-        # reads prompt from prompt.txt
-        with open('prompt.txt') as f:
-            prompt = f.readlines()
+    #     # reads prompt from prompt.txt
+    #     with open('prompt.txt') as f:
+    #         prompt = f.readlines()
 
-        # saves the response as a variable
-        response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=prompt
-        )
+    #     # saves the response as a variable
+    #     response = client.models.generate_content(
+    #         model="gemini-2.5-flash", contents=prompt
+    #     )
 
-        # prints the response
-        print(response.text)
+    #     # prints the response
+    #     print(response.text)
+
 
 
 
