@@ -7,7 +7,7 @@ jpamb.cases.TrickyMinimalOpcodes.conditionalThrow:(Z)I                  (false) 
 jpamb.cases.TrickyMinimalOpcodes.createAndFill:(I)I                     (3) -> ok
 jpamb.cases.TrickyMinimalOpcodes.createAndFill:(I)I                     (0) -> ok
 jpamb.cases.TrickyMinimalOpcodes.naiveMul:(II)I                         (2, 1000000000) -> ok
-jpamb.cases.TrickyMinimalOpcodes.naiveMul:(II)I                         (2, 2000000000) -> -1
+jpamb.cases.TrickyMinimalOpcodes.naiveMul:(II)I                         (2, 2000000000) -> ok
 jpamb.cases.TrickyMinimalOpcodes.dupAndSum:(II)I                        (4, 5) -> ok
 jpamb.cases.TrickyMinimalOpcodes.evenOddMarker:(I)I                     (10) -> ok
 jpamb.cases.TrickyMinimalOpcodes.evenOddMarker:(I)I                     (11) -> ok
