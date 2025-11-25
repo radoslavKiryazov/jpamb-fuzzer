@@ -2,7 +2,7 @@ import random
 import copy
 import string
 from typing import List
-
+from google import genai
 from jpamb import jvm
 from jpamb.jvm.base import (
     Value, Int, Boolean, Char, Array, Type,
@@ -169,6 +169,23 @@ class CaseGenerator:
             out.append(Input(tuple(jp_values)))
 
         return out
+    
+    def generate_llm_cases(self, count=GEN_BATCH_SIZE):
+        # client reads api key from the enviroment
+        client = genai.Client(api_key="YOUR_API_KEY")
+
+        # reads prompt from prompt.txt
+        with open('prompt.txt') as f:
+            prompt = f.readlines()
+
+        # saves the response as a variable
+        response = client.models.generate_content(
+            model="gemini-2.5-flash", contents=prompt
+        )
+
+        # prints the response
+        print(response.text)
+
 
 
 # test for the hood
