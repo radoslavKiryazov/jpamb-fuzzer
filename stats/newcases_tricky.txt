@@ -1,0 +1,30 @@
+jpamb.cases.TrickyFuzz.multiplyAndCheck:(II)V                         (2, 1000000000) -> ok
+jpamb.cases.TrickyFuzz.multiplyAndCheck:(II)V                         (2, 2000000000) -> overflow -> assertion error
+
+jpamb.cases.TrickyFuzz.safeDivide:(II)V                               (10, 2) -> ok
+jpamb.cases.TrickyFuzz.safeDivide:(II)V                               (10, 0) -> ArithmeticException
+
+jpamb.cases.TrickyFuzz.lengthThenChar:(Ljava/lang/String;)V           ("hello") -> ok
+jpamb.cases.TrickyFuzz.lengthThenChar:(Ljava/lang/String;)V           (null) -> NullPointerException
+
+jpamb.cases.TrickyFuzz.checkPath:(Ljava/lang/String;Ljava/lang/String;)V          ("/safe/dir", "file.txt") -> ok
+jpamb.cases.TrickyFuzz.checkPath:(Ljava/lang/String;Ljava/lang/String;)V          ("/safe/dir", "../secret.txt") -> path traversal -> assertion error
+
+jpamb.cases.TrickyFuzz.regexMatch:(Ljava/lang/String;Ljava/lang/String;)V         ("(a+)+$", "a") -> ok
+jpamb.cases.TrickyFuzz.regexMatch:(Ljava/lang/String;Ljava/lang/String;)V         ("(a+)+$", "a{10000}") -> catastrophic backtracking / hang
+
+jpamb.cases.TrickyFuzz.userFormat:(Ljava/lang/String;Ljava/lang/String;)V         ("Name: %s", "Alice") -> ok
+jpamb.cases.TrickyFuzz.userFormat:(Ljava/lang/String;Ljava/lang/String;)V         ("%s %s %s", "onlyOneArg") -> MissingFormatArgumentException
+
+jpamb.cases.TrickyFuzz.parseInteger:(Ljava/lang/String;)V             ("123") -> ok
+jpamb.cases.TrickyFuzz.parseInteger:(Ljava/lang/String;)V             ("   123  ") -> ok
+jpamb.cases.TrickyFuzz.parseInteger:(Ljava/lang/String;)V             ("12abc") -> NumberFormatException
+
+jpamb.cases.TrickyFuzz.buildSql:(Ljava/lang/String;)V                 ("alice") -> ok
+jpamb.cases.TrickyFuzz.buildSql:(Ljava/lang/String;)V                 ("alice';-- ") -> IllegalArgumentException (dangerous chars)
+
+jpamb.cases.TrickyFuzz.raceIncrement:(I)V                             (100) -> race condition / assertion failure possible
+jpamb.cases.TrickyFuzz.raceIncrement:(I)V                             (0) -> ok
+
+jpamb.cases.TrickyFuzz.allocateN:(I)V                                 (10) -> ok
+jpamb.cases.TrickyFuzz.allocateN:(I)V                                 (100000000) -> OutOfMemoryError

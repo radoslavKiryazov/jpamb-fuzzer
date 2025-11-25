@@ -14,6 +14,10 @@ import java.util.regex.Pattern;
  * as your example.
  */
 public class TrickyFuzz {
+    // Tag:
+    // OVERFLOW, MATH, NULL, IO, PATH, REGEX, FORMAT, PARSE, SQL, CONCURRENCY, RESOURCE, FUZZ
+
+
     // ---------------------------
     // Integer overflow / underflow
     // ---------------------------
@@ -196,6 +200,10 @@ public class TrickyFuzz {
 
 
 public class TrickyMinimalOpcodes {
+    // Tags:
+    // CONDITIONAL, LOOP, INTEGER_OVERFLOW, CALL, ARRAY, RECURSION, STDLIB, FUZZ
+
+
     // -------------------------
     // 1) simple loop + iinc (incr) + if_icmp*
     //    - uses: push, load, store, iinc, if_icmpge, goto, return
