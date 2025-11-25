@@ -85,10 +85,10 @@ def _prefer_non_top_env(old_env: Dict[str, Any], new_env: Dict[str, Any], Taint)
 def enhanced_bounded_run(
     prog: Program,
     *,
-    depth: int,
+    depth: int,                         # bounded depth; max iterations
     init_env: Optional[Dict[str, Any]],
-    Taint,
-    AState,
+    Taint,                              # Useless
+    AState,                             # Abstract State, Dict(int, Dict(str, Any))?
     step_one_func: Callable[[Program, Any], Iterable[Any]],
     # knobs
     WIDEN_AFTER: int = 2,

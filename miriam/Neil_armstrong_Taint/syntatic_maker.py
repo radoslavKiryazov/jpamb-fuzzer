@@ -356,6 +356,7 @@ def _parse_method_id(arg: str):
     cls, meth, desc = m.group("class"), m.group("meth"), m.group("desc")
     return cls, meth, desc, count_params(desc), raw
 
+
 def main():
     if len(sys.argv) == 2 and sys.argv[1] == "info":
         _print_info()
@@ -392,6 +393,7 @@ def main():
     print(f"out of bounds;{oob}%")
     print(f"null pointer;{npe}%")
     print(f"*;{inf}%")
+
 
 if __name__ == "__main__":
     main()

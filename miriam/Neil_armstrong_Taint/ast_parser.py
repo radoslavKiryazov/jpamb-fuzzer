@@ -20,6 +20,7 @@ except ImportError:
     JAVA_LANGUAGE = None
     PARSER = None
 
+
 @dataclass
 class ASTNode:
     """Represents an AST node with its type and children"""

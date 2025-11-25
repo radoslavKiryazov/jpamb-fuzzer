@@ -10,6 +10,7 @@ import os, re, sys, importlib
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Iterable, Optional, Set, Literal
 
+
 # ---------- Import AST/CST parser (tree-sitter) ----------
 try:
     HERE = os.path.dirname(os.path.abspath(__file__))
@@ -26,6 +27,7 @@ try:
 except ImportError as e:
     sys.stderr.write(f"[bounded] Warning: Could not import ast_parser: {e}\n")
     _has_ast_parser = False
+
 
 # ---------- Import syntactic analyzer functions (fallback) ----------
 try:
@@ -44,6 +46,7 @@ except ImportError as e:
     sys.stderr.write(f"[bounded] Warning: Could not import syntatic_maker: {e}\n")
     _has_syntatic = False
 
+
 # --------- JPAMB integration (optional) ---------
 _has_jpamb = False
 try:
@@ -51,6 +54,7 @@ try:
     _has_jpamb = True
 except Exception:
     _has_jpamb = False
+
 
 def _resolve_source(java_class: str) -> str:
     if _has_jpamb:
@@ -70,6 +74,7 @@ def _resolve_source(java_class: str) -> str:
         if os.path.exists(p):
             return p
     return candidates[0]
+
 
 _BASE = set("BCDFIJSZ")
 def count_params(desc: str) -> int:
@@ -103,10 +108,12 @@ _HEADER_RE_TMPL = r"""
 _HEADER_RE_FLAGS = re.M | re.VERBOSE
 _PARAM_SPLIT = re.compile(r",(?![^<]*>)")
 
+
 def _param_count_from_text(params_text: str) -> int:
     params_text = params_text.strip()
     if not params_text: return 0
     return len([p for p in _PARAM_SPLIT.split(params_text) if p.strip()])
+
 
 def _skip_table(src: str) -> List[bool]:
     L = len(src); skip = [False]*L; i=0
@@ -134,6 +141,7 @@ def _skip_table(src: str) -> List[bool]:
             i=j; continue
         i+=1
     return skip
+
 
 def extract_method_text(java_src: str, method: str, arity: int) -> str:
     header_re = re.compile(_HEADER_RE_TMPL.format(meth=re.escape(method)), _HEADER_RE_FLAGS)
@@ -170,6 +178,7 @@ def extract_method_text(java_src: str, method: str, arity: int) -> str:
             i += 1
     return ""
 
+
 def read_source(java_class: str) -> str:
     # Try using syntactic analyzer's source_path first
     if _has_syntatic:
@@ -188,6 +197,7 @@ def read_source(java_class: str) -> str:
     except Exception:
         return ""
 
+
 def extract_parameters(method_text: str) -> List[str]:
     m = re.search(r'\b[\w$<>.\[\]]+\s+[\w$<>]+\s*\((.*?)\)', method_text, re.S)
     if not m: return []
@@ -204,12 +214,14 @@ def extract_parameters(method_text: str) -> List[str]:
         if m2: names.append(m2.group(1))
     return names
 
+
 @dataclass(frozen=True)
 class Instr:
     op: str
     args: Tuple
 
 Program = Dict[int, Instr]
+
 
 def build_ir(method_text: str, params: List[str], syntax_hints: Optional[Dict[str, int]] = None) -> Program:
     """
@@ -271,6 +283,7 @@ def build_ir(method_text: str, params: List[str], syntax_hints: Optional[Dict[st
     prog[pc] = Instr("RET", ()); pc += 1
     return prog
 
+
 @dataclass(frozen=True)
 class Taint:
     kinds: Optional[frozenset]
@@ -298,6 +311,8 @@ class Taint:
         return self.kinds.issubset(other.kinds)
 
 FrameTag = Literal["ok","err"]
+
+
 @dataclass
 class AState:
     pc: int
@@ -311,8 +326,10 @@ class AState:
         tag = "err" if (self.tag=="err" or other.tag=="err") else "ok"
         return AState(self.pc, env, {}, tag)
 
+
 def initial_env_from_params(params: List[str]) -> Dict[str, Taint]:
     return {p: Taint.t("param") for p in params}
+
 
 _ID = re.compile(r'\b[A-Za-z_]\w*\b')
 def eval_expr_taint(expr: str, s: AState) -> Taint:
@@ -323,11 +340,13 @@ def eval_expr_taint(expr: str, s: AState) -> Taint:
         out = out.join(s.env.get(name, Taint.u()))
     return out
 
+
 SOURCE_FUNCS = (
     "readLine", "next", "nextInt", "nextLong", "nextLine", "getParameter",
     "getInput", "read", "recv", "receive"
 )
 SANITIZERS = ("parseInt", "parseLong")
+
 
 def step_one(prog: 'Program', s: AState) -> Iterable[AState]:
     ins = prog.get(s.pc)
@@ -397,6 +416,7 @@ def step_one(prog: 'Program', s: AState) -> Iterable[AState]:
     else:
         yield nxt(s.pc+1)
 
+
 def bounded_run(prog: 'Program', depth: int, init_env: Optional[Dict[str, Taint]] = None) -> Dict[int, AState]:
     per_pc: Dict[int, AState] = {0: AState(0, env=(init_env or {}))}
     for _ in range(depth):
@@ -410,6 +430,39 @@ def bounded_run(prog: 'Program', depth: int, init_env: Optional[Dict[str, Taint]
         per_pc = next_map
         if not per_pc: break
     return per_pc
+
+
+def relational_bounded_run(prog: 'Program', depth: int, init_env: Optional[Dict[str, Any]] = None) -> Dict[int, Any]:
+    """
+    Run bounded analysis with relational abstract domain.
+    Returns states enhanced with relational constraints.
+    """
+    if not _has_relational_domain:
+        # Fallback to regular bounded run
+        return bounded_run(prog, depth, init_env)
+    
+    try:
+        # Convert regular states to EnhancedAState format
+        enhanced_states = integrate_relational_domain(
+            prog, depth, init_env, Taint, AState, step_one
+        )
+        
+        # Convert back to regular AState format for compatibility
+        regular_states = {}
+        for pc, enhanced_state in enhanced_states.items():
+            regular_state = AState(
+                pc=enhanced_state.pc,
+                env=enhanced_state.env,
+                facts=enhanced_state.facts,
+                tag=enhanced_state.tag
+            )
+            regular_states[pc] = regular_state
+        
+        return regular_states
+    except Exception as e:
+        sys.stderr.write(f"[bounded] relational analysis failed, falling back: {e}\n")
+        return bounded_run(prog, depth, init_env)
+
 
 def compute_scores(method_text: str, per_pc: Dict[int, AState], prog: 'Program')->Tuple[int,int,int,int,int,int]:
     src = method_text
@@ -428,14 +481,16 @@ def compute_scores(method_text: str, per_pc: Dict[int, AState], prog: 'Program')
 
 INFO_LINES = (
     "Bounded AI",
-    "0.2.0",
-    "DTU JPAMB Group",
-    "static,ai,bounded,taint",
+    "0.3.0",
+    "Group 20",
+    "static,ai,bounded,taint,relational",
     "no",
 )
 
+
 def _print_info():
     for line in INFO_LINES: print(line)
+
 
 def _print_defaults():
     print("ok;75%")
@@ -444,6 +499,7 @@ def _print_defaults():
     print("out of bounds;5%")
     print("null pointer;5%")
     print("*;5%")
+
 
 def _parse_method_id(arg: str):
     if _has_jpamb and arg != "info":
@@ -459,6 +515,7 @@ def _parse_method_id(arg: str):
     if not m: raise ValueError("bad method id format")
     cls, meth, desc = m.group("class"), m.group("meth"), m.group("desc")
     return cls, meth, desc, count_params(desc)
+
 
 def main():
     if len(sys.argv)==2 and sys.argv[1]=="info":
@@ -556,14 +613,31 @@ def main():
         na = importlib.import_module("novel_abstractions")
         na = importlib.reload(na)
         sys.stderr.write(f"[bounded] using novel_abstractions from: {getattr(na, '__file__', '?')}\n")
-        states, loop_tracker = na.enhanced_bounded_run(
-            prog,
-            depth=8,
-            init_env=initial_env_from_params(params),
-            Taint=Taint,
-            AState=AState,
-            step_one_func=step_one
-        )
+        
+        
+        # Try to use relational domain WITH novel abstractions if both available
+        if _has_relational_domain:
+            sys.stderr.write("[bounded] using relational domain + novel abstractions\n")
+            # Use novel_abstractions but with our enhanced step function
+            states, loop_tracker = na.enhanced_bounded_run(
+                prog,
+                depth=8,
+                init_env=initial_env_from_params(params),
+                Taint=Taint,
+                AState=EnhancedAState,  # Use enhanced state
+                step_one_func=lambda prog, s: enhanced_step_one(prog, s, step_one)  # Use enhanced stepping
+            )
+        else:
+            sys.stderr.write("[bounded] using novel_abstractions only\n")
+            states, loop_tracker = na.enhanced_bounded_run(
+                prog,
+                depth=8,
+                init_env=initial_env_from_params(params),
+                Taint=Taint,
+                AState=AState,
+                step_one_func=step_one
+            )
+        
         scores_dict = na.compute_enhanced_scores(method_text, states, prog, loop_tracker)
         ai_ok, ai_div0, ai_asrt, ai_oob, ai_npe, ai_inf = (
             int(scores_dict.get("ok", 0)),
@@ -649,12 +723,40 @@ def main():
         else:
             ok, div0, asrt, oob, npe, inf = compute_scores(method_text, states, prog)
 
+    except Exception as e:
+        sys.stderr.write(f"[bounded] enhanced path failed: {e}\n")
+        import traceback
+        sys.stderr.write(traceback.format_exc() + "\n")
+        states = bounded_run(prog, depth=5, init_env=initial_env_from_params(params))
+        # If we have syntactic analysis, combine it with basic AI
+        if syntax_hints:
+            syn_ok, syn_div, syn_asrt, syn_oob, syn_npe, syn_inf = (
+                100 - max(syntax_hints.get('divide', 5), syntax_hints.get('assert', 5), 
+                         syntax_hints.get('oob', 5), syntax_hints.get('npe', 5), syntax_hints.get('inf', 5)),
+                syntax_hints.get('divide', 5),
+                syntax_hints.get('assert', 5),
+                syntax_hints.get('oob', 5),
+                syntax_hints.get('npe', 5),
+                syntax_hints.get('inf', 5),
+            )
+            ai_ok, ai_div0, ai_asrt, ai_oob, ai_npe, ai_inf = compute_scores(method_text, states, prog)
+            div0 = max(syn_div, ai_div0)
+            asrt = max(syn_asrt, ai_asrt)
+            oob = max(syn_oob, ai_oob)
+            npe = max(syn_npe, ai_npe)
+            inf = max(syn_inf, ai_inf)
+            worst = max(div0, asrt, oob, npe, inf)
+            ok = max(0, 100 - worst)
+        else:
+            ok, div0, asrt, oob, npe, inf = compute_scores(method_text, states, prog)
+
     print(f"ok;{ok}%")
     print(f"divide by zero;{div0}%")
     print(f"assertion error;{asrt}%")
     print(f"out of bounds;{oob}%")
     print(f"null pointer;{npe}%")
     print(f"*;{inf}%")
+
 
 if __name__ == "__main__":
     main()

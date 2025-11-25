@@ -226,6 +226,24 @@ class State:
         return f"{self.heap} {self.frames}"
 
 # ---------- interpreter
+# Supported opcodes: (v1. jpamb 0.10.3)
+#   push, load, store, nop, pop, swap,
+#   binary (div, add, sub, mul, rem) for int,
+#   dup, dup2,
+#   cast (to int),
+#   ifz (ifeq, ifne, ifgt, ifge, iflt, ifle),
+#   ifcmp (if_icmp*),
+#   goto,
+#   return (int, void),
+#   getstatic (for $assertionsDisabled),
+#   new,
+#   invoke (static, special, virtual),
+#   throw (athrow),
+#   newarray, arraylength, arrayload, arraystore,
+#   aconst_null, incr
+# # 
+# extended opcode support:
+
 
 def step(state: State) -> State | str:
     assert isinstance(state, State)
