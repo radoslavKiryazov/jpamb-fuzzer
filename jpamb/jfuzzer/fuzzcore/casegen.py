@@ -85,7 +85,7 @@ class CaseGenerator:
     def generate_llm_cases(self, count=GEN_BATCH_SIZE) -> List[Input]:
         import google.generativeai as genai
         import re
-        genai.configure(api_key="AIzaSyA5c3FlgjoCb8hvOyTye7rMxPoBgfsc-54")
+        genai.configure(api_key="")
 
         llm_output_schema = {
             "ingredients:"
