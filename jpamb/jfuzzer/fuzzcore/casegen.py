@@ -83,8 +83,7 @@ class CaseGenerator:
 
 
     def generate_llm_cases(self, count=GEN_BATCH_SIZE) -> List[Input]:
-        import google.generativeai as genai
-        from google import genai
+        
         import re
         import os
         from pydantic import List, Optional, BaseModel, Field
@@ -93,7 +92,7 @@ class CaseGenerator:
         load_dotenv()
 
         # Assumes API key is set in environment variable 'GENAI_API_KEY'
-        client = genai.Client()
+        
 
         #genai.configure(api_key=key)     we don't need this because the prevois line solves this and we won't leak the key... hopefully    
         # class Response(BaseModel):
@@ -107,7 +106,6 @@ class CaseGenerator:
             Inputs:list[Input]
         
             
-
         src=jpamb.Suite.sourcefile(self.target.methodid)
         bytecode_src=jpamb.Suite.method_opcodes(self.target.methodid)
 
@@ -118,19 +116,28 @@ class CaseGenerator:
         
         prompt = f"Please generate {count} fuzzing cases for this code: {match} \\ Please make sure that your fuzzing cases should cover new instruction, and hopefully will triger the expected exception of {self.target.result}. \\ The bytecode of the soruce code is given as {bytecode_src}, and the codes that's already been covered are shown in these offsets of the bytecode: {offsets_bytecode}"
            
+        scheme = Method.model_json_schema()
+
+        response = self.call_for_llm( prompt=prompt, scheme=scheme)
+
+        print(response.text)
+
+    def call_for_llm(self, prompt="", scheme={}):
+        from google import genai
+        client = genai.Client()
+
         response = client.models.generate_content(
             model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash",       # or gemini-2.0-pro
+            model_name="gemini-2.5-flash",       # so the json-schemea could work
             system_instructions="You are an expert in fuzzing test case generation. You will be given a target program in source code and bytecode. Plus, you will be given the line coverage from last fuzzing test, in the fotmat of bytecode offset. Your task is to generate fuzzing test cases as described by user. Please give the test csaes in the following structure: [input1, input2, ...]. Each input should match the type of the corresponding parameter in the method signature. For example, if the method signature is (int, boolean, char[]), you might generate an input like [42, true, ['a', 'b', 'c']]. Ensure that the generated inputs are valid and can be used directly as test cases for the target program. Also ensure that ",
             ),
             config={
                 "response_mime_type": "application/json",
-                "response_json_schema": Method.model_json_schema(),
+                "response_json_schema": scheme,
             },
             contents=prompt
         )
-
-        print(response.text)
+        return response
 
 
     def generate_new_cases(self, count=GEN_BATCH_SIZE) -> List[Input]:
