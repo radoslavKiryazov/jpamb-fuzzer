@@ -92,9 +92,10 @@ class CaseGenerator:
         from dotenv import load_dotenv
         load_dotenv()
 
-        key = os.getenv("API_KEY")
-        # Assumes API key is set in .env file as API_KEY="" variable
-        genai.configure(api_key=key)         
+        # Assumes API key is set in environment variable 'GENAI_API_KEY'
+        client = genai.Client()
+
+        #genai.configure(api_key=key)     we don't need this because the prevois line solves this and we won't leak the key... hopefully    
         # class Response(BaseModel):
         
         class Input(BaseModel):
@@ -105,28 +106,31 @@ class CaseGenerator:
             methodid: str = Field(description="Id of the method getting fuzzed")
             Inputs:list[Input]
         
-            model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash",       # or gemini-2.0-pro
-                system_instructions="You are an expert in fuzzing test case generation. You will be given a target program in source code and bytecode. Plus, you will be given the line coverage from last fuzzing test, in the fotmat of bytecode offset. Your task is to generate fuzzing test cases as described by user. Please give the test csaes in the following structure: [input1, input2, ...]. Each input should match the type of the corresponding parameter in the method signature. For example, if the method signature is (int, boolean, char[]), you might generate an input like [42, true, ['a', 'b', 'c']]. Ensure that the generated inputs are valid and can be used directly as test cases for the target program. Also ensure that ",
-                config={
-                    "response_mime_type": "application/json",
-                    "response_json_schema": Method.model_json_schema()
-                }
-            )
+            
 
-            src=jpamb.Suite.sourcefile(self.target.methodid)
-            bytecode_src=jpamb.Suite.method_opcodes(self.target.methodid)
+        src=jpamb.Suite.sourcefile(self.target.methodid)
+        bytecode_src=jpamb.Suite.method_opcodes(self.target.methodid)
 
-            # Regex pattern (non-greedy, dotall)
-            pattern = rf"(?s)\b{re.escape(self.target.methodid)}\s*\([^)]*\)\s*\{{.*?\}}"
-            match = re.search(pattern, src)
-            offsets_bytecode = []
+        # Regex pattern (non-greedy, dotall)
+        pattern = rf"(?s)\b{re.escape(self.target.methodid)}\s*\([^)]*\)\s*\{{.*?\}}"
+        match = re.search(pattern, src)
+        offsets_bytecode = []
         
-            response = model.generate_content(
-                f"Please generate {count} fuzzing cases for this code: {match} \\ Please make sure that your fuzzing cases should cover new instruction, and hopefully will triger the expected exception of {self.target.result}. \\ The bytecode of the soruce code is given as {match}, and the codes that's already been covered are shown in these offsets of the bytecode: {offsets_bytecode}"
-            )
+        prompt = f"Please generate {count} fuzzing cases for this code: {match} \\ Please make sure that your fuzzing cases should cover new instruction, and hopefully will triger the expected exception of {self.target.result}. \\ The bytecode of the soruce code is given as {bytecode_src}, and the codes that's already been covered are shown in these offsets of the bytecode: {offsets_bytecode}"
+           
+        response = client.models.generate_content(
+            model = genai.GenerativeModel(
+            model_name="gemini-2.0-flash",       # or gemini-2.0-pro
+            system_instructions="You are an expert in fuzzing test case generation. You will be given a target program in source code and bytecode. Plus, you will be given the line coverage from last fuzzing test, in the fotmat of bytecode offset. Your task is to generate fuzzing test cases as described by user. Please give the test csaes in the following structure: [input1, input2, ...]. Each input should match the type of the corresponding parameter in the method signature. For example, if the method signature is (int, boolean, char[]), you might generate an input like [42, true, ['a', 'b', 'c']]. Ensure that the generated inputs are valid and can be used directly as test cases for the target program. Also ensure that ",
+            ),
+            config={
+                "response_mime_type": "application/json",
+                "response_json_schema": Method.model_json_schema(),
+            },
+            contents=prompt
+        )
 
-            print(response.text)
+        print(response.text)
 
 
     def generate_new_cases(self, count=GEN_BATCH_SIZE) -> List[Input]:
