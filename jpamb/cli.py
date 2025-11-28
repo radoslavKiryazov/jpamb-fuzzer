@@ -963,18 +963,30 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
         casegen_time = []
 
         with r.context(f"Case {item}"):
-            case_generator = CaseGenerator(item)
+            case_generator = CaseGenerator(suite ,item)
 
             # print(f"======== METHODID {item.methodid} ========")
 
             for round in range(CAMPAIGN_ROUNDS):
                 oracle = Oracle(item.result)
                 target_hit_this_round = False
+                get_start = time.time()
 
                 # fuzzing_test_cases = case_generator.generate_new_cases()
-                fuzzing_test_cases = case_generator.generate_llm_cases()
+                fuzzing_test_cases = case_generator.generate_llm_cases(
+                    count=2,
+                    previous_results=fuzzing_result[-20:],
+                )
                 # print("fuzzing cases", fuzzing_test_cases)
+                
+                gen_end = time.time()
+                gen_time = gen_end - get_start
+                casegen_time.append(gen_time)
+                
+                print(f"[DEBUG] Case generation took {gen_time:.4f}s "
+                    f"and produced {len(fuzzing_test_cases)} cases.") 
 
+                
                 print(
                     f"Starting round {round} for issue {item.methodid} "
                     f"with {len(fuzzing_test_cases)} cases"
@@ -995,19 +1007,17 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
                     except subprocess.CalledProcessError as e:
                         log.error(e)
                         result = "failure"
-
+                        
                     classification = oracle.classify(result)
 
-                    # aggregate for later analysis
-                    fuzzing_result.append(
-                        {
-                            "method": str(item.methodid),
-                            "round": round,
-                            "input": case.encode(),
-                            "output": result,
-                            "classification": classification,
-                        }
-                    )
+                    fuzzing_result.append({
+                        "method": str(item.methodid),
+                        "round": round,
+                        "input": case.encode(),
+                        "output": result,
+                        "classification": classification
+                        })
+
 
                     saver(item, round, case.encode(), classification)
 
@@ -1040,7 +1050,7 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
 
         end = time.time()
         print(f"Fuzzing for issue {item.methodid} completed in {end - start} seconds.")
-        r.output(f"Alarm hit {alarm_hit}/{CAMPAIGN_ROUNDS}")
+        # r.output(f"Alarm hit {alarm_hit}/{CAMPAIGN_ROUNDS}")
 
         Path(".jfuzz-stepwise").unlink(True)
 

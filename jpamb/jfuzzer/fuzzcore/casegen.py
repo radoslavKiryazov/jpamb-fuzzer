@@ -1,25 +1,31 @@
 import random
-import copy
-import string
-from typing import List
-# from google import genai
+import re
+from typing import List, Any
+
 from jpamb import jvm
 from jpamb.jvm.base import (
-    Value, Int, Boolean, Char, Array, Type,
+    Value, Int, Boolean, Char, Array, Type
 )
 from jpamb.model import Input
 from jpamb.jfuzzer.report_preprocess.parser import Report_Item
+
+from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+import os 
+
 import jpamb
 
 
+# ============================================================
+# Signature Handler
+# ============================================================
+
 class SignatureHandler:
     """
-    JPAMB-native signature handler.
-    No string parsing.
+    JPAMB-native signature handler using MethodID type info.
     """
 
     def __init__(self, abs_methodid: jvm.AbsMethodID):
-        # abs_methodid.extension is a MethodID object!!!!!!!!
         method = abs_methodid.extension
 
         self.param_types = list(method.params._elements)
@@ -28,21 +34,17 @@ class SignatureHandler:
         print("[DEBUG] JPAMB param types:", self.param_types)
 
     def values_for_type(self, t: Type):
-        """Return example Python values for JPAMB types"""
+        """Return example Python values for JPAMB types."""
 
-        # int
         if isinstance(t, Int):
             return [0, 1, -1, 42, 1337]
 
-        # boolean
         if isinstance(t, Boolean):
             return [True, False]
 
-        # char
         if isinstance(t, Char):
             return ["a", "b", "Z"]
 
-        # arrays
         if isinstance(t, Array):
             elem = t.contains
 
@@ -50,15 +52,14 @@ class SignatureHandler:
                 return [[], [1], [1, 2, 3], [-1, 0, 1]]
 
             if isinstance(elem, Char):
-                return [["a"], ["a","b","c"]]
+                return [["a"], ["a", "b", "c"]]
 
             return [[]]
 
-        # fallback
         return [None]
 
     def generate_seeds(self):
-        """Return all valid combinations"""
+        """Create Cartesian product of seed values."""
         from itertools import product
 
         if not self.param_types:
@@ -67,77 +68,159 @@ class SignatureHandler:
         value_lists = [self.values_for_type(t) for t in self.param_types]
         return list(product(*value_lists))
 
-    
-#  Case Generator now with signatures
-class CaseGenerator:
-    GEN_BATCH_SIZE = 20
 
-    def __init__(self, report_item: Report_Item) -> None:
+# Pydantic Models (LLM schema)
+
+class LLMInputParam(BaseModel):
+    type: str = Field(description="JPAMB parameter type")
+    value: Any = Field(description="Concrete value for fuzzing")
+
+
+class LLMCase(BaseModel):
+    parameters: List[LLMInputParam]
+
+
+class LLMResponse(BaseModel):
+    new_cases: List[LLMCase]
+
+
+# Case Generator
+
+class CaseGenerator:
+    GEN_BATCH_SIZE = 2
+
+    def __init__(self, suite, report_item: Report_Item) -> None:
         self.target = report_item
         print(f"[DEBUG] Initializing CaseGenerator with Report_Item: {report_item}")
         self.signature = SignatureHandler(report_item.methodid)
+        self.suite = suite
 
 
     def _mutate_int(self, value):
         return value + random.randint(-5, 5)
+    
+    def _llm_to_inputs(self, llm_json):
+        """
+        Convert the LLMResponse JSON into actual JPAMB Input objects.
+        """
+        cases = []
+        print("LLM_TO_INPUTS JSON:", llm_json)
+        for case_obj in llm_json:
+            params = []
 
+            for p in case_obj["parameters"]:
 
-    def generate_llm_cases(self, count=GEN_BATCH_SIZE) -> List[Input]:
+                if p["type"] == "int":
+                    params.append(Value.int(int(p["value"])))
+
+                elif p["type"] == "boolean":
+                    params.append(Value.boolean(bool(p["value"])))
+
+                elif p["type"] == "char":
+                    params.append(Value.char(str(p["value"])))
+
+                elif p["type"] == "int[]":
+                    params.append(Value.array(Int(), list(p["value"])))
+
+                elif p["type"] == "char[]":
+                    params.append(Value.array(Char(), list(p["value"])))
+
+                else:
+                    print("[WARN] Unknown LLM type:", p)
+
+            cases.append(Input(tuple(params)))
+
+        return cases
+
+    # LLM Case Generation (with previous results)
+
+    def generate_llm_cases(self, count=GEN_BATCH_SIZE, previous_results=None):
+
+        # Build JSON schema for the LLM
+        scheme = LLMResponse.model_json_schema()
+
+        # Extract readable method source
+        print(f"[DEBUG] Extracting source for method: {self.target.methodid.classname}")
+        src_path = self.suite.sourcefile(self.target.methodid.classname)
+        src = src_path.read_text()
         
-        import re
-        import os
-        from pydantic import List, Optional, BaseModel, Field
-        
-        from dotenv import load_dotenv
-        load_dotenv()
+        bytecode_src = list(self.suite.method_opcodes(self.target.methodid))
 
-        # Assumes API key is set in environment variable 'GENAI_API_KEY'
-        
 
-        #genai.configure(api_key=key)     we don't need this because the prevois line solves this and we won't leak the key... hopefully    
-        # class Response(BaseModel):
-        
-        class Input(BaseModel):
-            type: str = Field(description="Type of the input parameter")
-            value: any = Field(description="Value of the input parameter")
-
-        class Method(BaseModel):
-            methodid: str = Field(description="Id of the method getting fuzzed")
-            Inputs:list[Input]
-        
-            
-        src=jpamb.Suite.sourcefile(self.target.methodid)
-        bytecode_src=jpamb.Suite.method_opcodes(self.target.methodid)
-
-        # Regex pattern (non-greedy, dotall)
-        pattern = rf"(?s)\b{re.escape(self.target.methodid)}\s*\([^)]*\)\s*\{{.*?\}}"
+        # Regex: extract method body from file
+        pattern = rf"(?s)\b{re.escape(str(self.target.methodid))}\s*\([^)]*\)\s*\{{.*?\}}"
         match = re.search(pattern, src)
-        offsets_bytecode = []
+
+        if match:
+            method_source = match.group(0)
+        else:
+            method_source = "METHOD_BODY_NOT_FOUND"
+
+        previous_results = previous_results or []
+
+        # Build the LLM prompt
+        prompt = f"""
+            You are a program analysis and fuzzing expert.
+
+            We are fuzzing the method:
+                {self.target.methodid}
+
+            SOURCE CODE:
+             {method_source}
+
+            BYTECODE:
+            {bytecode_src}
+
+            PREVIOUS FUZZING RESULTS:
+            {previous_results} //update to pass states of the previous items on the stack
+
+            Your job:
+            - Generate {count} *new* fuzz inputs.
+            - DO NOT repeat previous inputs.
+            - Prefer inputs that cover *new bytecode offsets*.
+            - Try to trigger or avoid the expected behaviour: {self.target.result}.
+            - Follow the JPAMB method signature exactly.
+
+            Return ONLY JSON following this schema:
+            {scheme}
+            """
+
+        response = self.call_for_llm(prompt=prompt, scheme=scheme)
         
-        prompt = f"Please generate {count} fuzzing cases for this code: {match} \\ Please make sure that your fuzzing cases should cover new instruction, and hopefully will triger the expected exception of {self.target.result}. \\ The bytecode of the soruce code is given as {bytecode_src}, and the codes that's already been covered are shown in these offsets of the bytecode: {offsets_bytecode}"
-           
-        scheme = Method.model_json_schema()
+        if response is None:
+            print("[ERROR] Encountered None response from LLM.")
+            return []
+        # print("LLM Response:", response.text)
+        
+        print("[DEBUG] LLM raw response:", response)
+        
+        llm_json = response["new_cases"]
+        return self._llm_to_inputs(llm_json)
 
-        response = self.call_for_llm( prompt=prompt, scheme=scheme)
 
-        print(response.text)
 
-    def call_for_llm(self, prompt="", scheme={}):
+    def call_for_llm(self, prompt="", scheme=None):
         from google import genai
-        client = genai.Client()
+        from google.genai import types
+        
+        load_dotenv()  # load env vars (API key)
+        api = os.getenv("API_KEY")
+        print(f"[DEBUG] Using API Key: {api}")
+        
+        client = genai.Client(api_key=api)
 
         response = client.models.generate_content(
-            model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash",       # so the json-schemea could work
-            system_instructions="You are an expert in fuzzing test case generation. You will be given a target program in source code and bytecode. Plus, you will be given the line coverage from last fuzzing test, in the fotmat of bytecode offset. Your task is to generate fuzzing test cases as described by user. Please give the test csaes in the following structure: [input1, input2, ...]. Each input should match the type of the corresponding parameter in the method signature. For example, if the method signature is (int, boolean, char[]), you might generate an input like [42, true, ['a', 'b', 'c']]. Ensure that the generated inputs are valid and can be used directly as test cases for the target program. Also ensure that ",
+            model="gemini-2.5-flash",
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_json_schema=scheme,
+                temperature=0.2,
             ),
-            config={
-                "response_mime_type": "application/json",
-                "response_json_schema": scheme,
-            },
-            contents=prompt
+            contents=prompt,
         )
-        return response
+        
+        print("[DEBUG] LLM raw response content:", response.parsed)
+        return response.parsed
 
 
     def generate_new_cases(self, count=GEN_BATCH_SIZE) -> List[Input]:
@@ -157,7 +240,6 @@ class CaseGenerator:
 
                 elif isinstance(t, Char):
                     jp_values.append(Value.char(v))
-
                 elif isinstance(t, Array):
                     elem = t.contains
 
@@ -218,37 +300,17 @@ class CaseGenerator:
 
                 elif isinstance(t, Array):
                     elem = t.contains
-
                     if isinstance(elem, Int):
                         jp_values.append(Value.array(Int(), v))
-
                     elif isinstance(elem, Char):
                         jp_values.append(Value.array(Char(), v))
 
             out.append(Input(tuple(jp_values)))
 
         return out
-    
-    # def generate_llm_cases(self, count=GEN_BATCH_SIZE):
-    #     # client reads api key from the enviroment
-    #     client = genai.Client(api_key="YOUR_API_KEY")
-
-    #     # reads prompt from prompt.txt
-    #     with open('prompt.txt') as f:
-    #         prompt = f.readlines()
-
-    #     # saves the response as a variable
-    #     response = client.models.generate_content(
-    #         model="gemini-2.5-flash", contents=prompt
-    #     )
-
-    #     # prints the response
-    #     print(response.text)
 
 
 
-
-# test for the hood
 if __name__ == "__main__":
 
     method_id = jvm.AbsMethodID.decode("jpamb.cases.Arrays.arraySumIsLarge:([I)V")
@@ -264,8 +326,10 @@ if __name__ == "__main__":
     print("Param types:", case_gen.signature.param_types)
     print("Seeds:", case_gen.signature.generate_seeds())
 
+    print("\nGenerated NEW cases:")
     for case in case_gen.generate_new_cases(5):
         print(case.encode())
 
+    print("\nGenerated MUTATED cases:")
     for case in case_gen.generate_mutated_cases(5):
         print(case.encode())

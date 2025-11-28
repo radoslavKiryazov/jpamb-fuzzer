@@ -441,3 +441,10 @@ jpamb.cases.Simple.justReturnNothing: '' -> ok,9,(),OK
 jpamb.cases.Simple.multiError: '' -> assertion error,0,(true),NEW_ALARM
 jpamb.cases.Simple.multiError: '' -> assertion error,0,(false),TARGET_HIT
 jpamb.cases.Tricky.collatz: '' -> assertion error,0,(0),TARGET_HIT
+jpamb.cases.Arrays.arraySumIsLarge: '' -> assertion error,0,(),NEW_ALARM
+jpamb.cases.Arrays.arraySumIsLarge: '' -> assertion error,0,(),NEW_ALARM
+jpamb.cases.Arrays.arraySumIsLarge: '' -> assertion error,1,(),NEW_ALARM
+jpamb.cases.Arrays.arraySumIsLarge: '' -> assertion error,1,(),NEW_ALARM
+jpamb.cases.Arrays.arraySumIsLarge: '' -> assertion error,2,([I:1, 2, 3]),TARGET_HIT
+jpamb.cases.Arrays.arraySumIsLarge: '' -> assertion error,0,([I:100, 200]),TARGET_HIT
+jpamb.cases.Arrays.arraySumIsLarge: '' -> assertion error,0,([I:10, 20, 30]),TARGET_HIT
