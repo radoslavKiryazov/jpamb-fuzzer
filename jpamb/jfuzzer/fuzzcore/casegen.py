@@ -185,17 +185,18 @@ class CaseGenerator:
             {scheme}
             """
 
-        response = self.call_for_llm(prompt=prompt, scheme=scheme)
+        response, usage = self.call_for_llm(prompt=prompt, scheme=scheme)
         
         if response is None:
             print("[ERROR] Encountered None response from LLM.")
-            return []
+            return [], usage
         # print("LLM Response:", response.text)
         
         print("[DEBUG] LLM raw response:", response)
         
         llm_json = response["new_cases"]
-        return self._llm_to_inputs(llm_json)
+        cases = self._llm_to_inputs(llm_json)
+        return cases, usage 
 
 
 
@@ -205,7 +206,6 @@ class CaseGenerator:
         
         load_dotenv()  # load env vars (API key)
         api = os.getenv("API_KEY")
-        print(f"[DEBUG] Using API Key: {api}")
         
         client = genai.Client(api_key=api)
 
@@ -220,7 +220,11 @@ class CaseGenerator:
         )
         
         print("[DEBUG] LLM raw response content:", response.parsed)
-        return response.parsed
+        print("[DEBUG] LLM raw response metadata:", response.usage_metadata)
+        
+        parsed = response.parsed
+        usage_metadata = response.usage_metadata
+        return parsed, usage_metadata
 
 
     def generate_new_cases(self, count=GEN_BATCH_SIZE) -> List[Input]:

@@ -931,6 +931,10 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
 
     # r is an output formatter
     r = Reporter(report)
+    
+    total_prompt_tokens = 0
+    total_response_tokens = 0
+    total_total_tokens = 0
 
     last_campaign = None
     if stepwise:
@@ -944,6 +948,10 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
             last_campaign = None
 
     print(f"ALARMS {alarms[0]}")
+    
+    print("\n==================== STARTING JFUZZ ====================")
+    print(f"Loaded alarms: first alarm --> {alarms[0]}")
+    print("========================================================\n")
 
     # collect all fuzzing results for analysis
     fuzzing_result = []
@@ -958,6 +966,10 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
 
         if filter and not filter.search(str(item)):
             continue
+        
+        print(f"\n==================== NEW CASE ====================")
+        print(f"Target: {item}")
+        print("=================================================\n")
 
         start = time.time()
         casegen_time = []
@@ -968,16 +980,36 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
             # print(f"======== METHODID {item.methodid} ========")
 
             for round in range(CAMPAIGN_ROUNDS):
+                print(f"\n==================== ROUND {round} ====================")
                 oracle = Oracle(item.result)
                 target_hit_this_round = False
                 get_start = time.time()
 
                 # fuzzing_test_cases = case_generator.generate_new_cases()
-                fuzzing_test_cases = case_generator.generate_llm_cases(
+                fuzzing_test_cases, usage = case_generator.generate_llm_cases(
                     count=2,
                     previous_results=fuzzing_result[-20:],
                 )
                 # print("fuzzing cases", fuzzing_test_cases)
+                print("========================================================")
+                
+                if usage:
+                    used_prompt = usage.prompt_token_count or 0
+                    used_response = usage.candidates_token_count or 0
+                    used_total = usage.total_token_count or (used_prompt + used_response)
+
+                    total_prompt_tokens += used_prompt
+                    total_response_tokens += used_response
+                    total_total_tokens += used_total
+
+                    print(
+                        f"[TOKENS] Round {round} | "
+                        f"prompt={used_prompt:,} | response={used_response:,} | total={used_total:,} | "
+                        f"cumulative={total_total_tokens:,}"
+                    )
+                else:
+                    print("[TOKENS] No usage metadata returned for this LLM call.")
+                    
                 
                 gen_end = time.time()
                 gen_time = gen_end - get_start
@@ -986,21 +1018,23 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
                 print(f"[DEBUG] Case generation took {gen_time:.4f}s "
                     f"and produced {len(fuzzing_test_cases)} cases.") 
 
-                
                 print(
                     f"Starting round {round} for issue {item.methodid} "
                     f"with {len(fuzzing_test_cases)} cases"
                 )
 
                 for case in fuzzing_test_cases:
-                    print(f"RUNNN {case.encode()}, {item.methodid.encode()}")
+                    print(f"\n========== RUNNING TESTCASE ==========")
+                    print(f"Input:  {case.encode()}")
+                    print(f"Method: {item.methodid.encode()}")
+                    print("======================================")
 
                     try:
                         out = r.run(
                             program + (item.methodid.encode(), case.encode()),
                             timeout=timeout,
                         )
-                        print(f"result {out}")
+                        print(f"[EXEC RESULT]: {out}")
                         result = out.splitlines()[-1].strip()
                     except subprocess.TimeoutExpired:
                         result = "*"
@@ -1037,15 +1071,17 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
                         sys.exit(-1)
 
                     if classification == "TARGET_HIT":
-                        print("[FUZZER] Target alarm reproduced. Stopping this round.")
+                        print("\n========== TARGET HIT ==========")
+                        print("Alarm reproduced. Stopping this round.")
+                        print("================================")
                         target_hit_this_round = True
                         break
+                
 
                 if target_hit_this_round:
-                    print(
-                        "[FUZZER] Full stop: target alarm reproduced. "
-                        "Ending fuzzing for this issue."
-                    )
+                    print("\n========== FULL STOP ==========")
+                    print("Target alarm reproduced. Ending fuzzing for this issue.")
+                    print("================================")
                     break
 
         end = time.time()
@@ -1053,6 +1089,12 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
         # r.output(f"Alarm hit {alarm_hit}/{CAMPAIGN_ROUNDS}")
 
         Path(".jfuzz-stepwise").unlink(True)
+        
+    print("\n==================== TOKEN SUMMARY ====================")
+    print(f"Total prompt tokens:   {total_prompt_tokens:,}")
+    print(f"Total response tokens: {total_response_tokens:,}")
+    print(f"Total combined tokens: {total_total_tokens:,}")
+    print("=======================================================\n")
 
     # classify results with analyzer
     pruned_results = analyzer.analyze_results(fuzzing_result)
