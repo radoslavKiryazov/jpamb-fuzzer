@@ -119,10 +119,10 @@ class CaseGenerator:
                 elif p["type"] == "char":
                     params.append(Value.char(str(p["value"])))
 
-                elif p["type"] == "int[]":
+                elif p["type"] in ("int[]", "[I"):
                     params.append(Value.array(Int(), list(p["value"])))
 
-                elif p["type"] == "char[]":
+                elif p["type"] in ("char[]", "[C"):
                     params.append(Value.array(Char(), list(p["value"])))
 
                 else:
