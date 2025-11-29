@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import sys
 from loguru import logger
 from jpamb.jvm.opcode import ArrayLoad, ArrayStore, NewArray, ArrayLength
+import json
 
 
 logger.add(sys.stderr, format="[{}] {}".format("{level}", "{message}"))
@@ -403,7 +404,7 @@ def step(state: State, executed_opcodes: ExecutedOpcodes) -> State | str:
                 frame.stack.push(top).push(top)
                 executed_opcodes.add(
                     frame.pc.offset,
-                    produce_opcode_repr(op),
+                    op,
                 )   
                 frame.pc += 1
                 return state
@@ -751,7 +752,7 @@ def step(state: State, executed_opcodes: ExecutedOpcodes) -> State | str:
                 
                 executed_opcodes.add(
                     frame.pc.offset,
-                    produce_opcode_repr(op),
+                    op,
                 )              
             frame.pc += 1
             return state
@@ -790,7 +791,7 @@ def step(state: State, executed_opcodes: ExecutedOpcodes) -> State | str:
             elems[idx] = val
             executed_opcodes.add(
                 frame.pc.offset,
-                produce_opcode_repr(op),
+                op,
             )
             frame.pc += 1
             return state
@@ -800,7 +801,7 @@ def step(state: State, executed_opcodes: ExecutedOpcodes) -> State | str:
             frame.stack.push(None)
             executed_opcodes.add(
                 frame.pc.offset,
-                produce_opcode_repr(op),
+                op,
             )
             frame.pc += 1
             return state
@@ -813,7 +814,7 @@ def step(state: State, executed_opcodes: ExecutedOpcodes) -> State | str:
             frame.locals[idx] = jvm.Value.int(cur.value + amount)
             executed_opcodes.add(
                 frame.pc.offset,
-                produce_opcode_repr(op),
+                op,
             )
             frame.pc += 1
             return state
@@ -824,22 +825,22 @@ def step(state: State, executed_opcodes: ExecutedOpcodes) -> State | str:
 
 # ---------- bootstrap & run
 
-frame = Frame.from_method(methodid)
+frame = Frame.from_method(methodid) 
 for i, v in enumerate(input.values):
     frame.locals[i] = v
 
 state = State({}, Stack.empty().push(frame))
+executed_opcodes = ExecutedOpcodes()
 
 for _ in range(1000):
-    executed_opcodes = ExecutedOpcodes()
     state = step(state, executed_opcodes)
     if isinstance(state, str):
         print("[FINAL] executed opcodes: {executed_opcodes.opcodes}")
         print(state)
+        print(json.dumps({
+            "result": state,
+            "executed_opcodes": executed_opcodes.opcodes
+        }))
         break
 else:
     print("*")
-output = {
-    "methoid": "string",
-    "inputList": "List[Input]"
-}

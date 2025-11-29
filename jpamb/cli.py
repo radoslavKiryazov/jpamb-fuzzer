@@ -1041,7 +1041,15 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
 
                         print(f"[EXEC RESULT]: {out}")
                         result = out.splitlines()[-1].strip()
-                        
+                        try: 
+                            parsed = json.loads(out.splitlines()[-1])
+                            result = parsed["result"]
+                            opcodes = parsed["executed_opcodes"]
+                            print(f"[GOTOPCODES]: {opcodes}")
+                        except:
+                            result = out.splitlines()[-1].strip()
+                            opcodes = []
+                            
                     except subprocess.TimeoutExpired:
                         result = "*"
                         
