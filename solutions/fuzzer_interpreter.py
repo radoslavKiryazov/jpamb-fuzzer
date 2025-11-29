@@ -11,6 +11,7 @@ logger.remove()
 
 methodid, input = jpamb.getcase()
 
+
 # ---------- helpers
 
 def opname(op) -> str:
@@ -244,14 +245,29 @@ class State:
 # # 
 # extended opcode support:
 
+def produce_opcode_repr(op: jvm.Opcode) -> str:
+    return f"{type(op).__name__}({op})"
 
-def step(state: State) -> State | str:
+class ExecutedOpcodes:
+    def __init__(self):
+        self.opcodes = []
+    
+    def add(self, offset: int, opcode: jvm.Opcode):
+        self.opcodes.append({
+            "offset": offset,
+            "opcode": produce_opcode_repr(opcode),
+            "repr": str(opcode)
+        })
+
+
+def step(state: State, executed_opcodes: ExecutedOpcodes) -> State | str:
     assert isinstance(state, State)
     frame = state.frames.peek()
     op = bc[frame.pc]
     logger.debug(f"STEP {op}\n{state}")
 
     name = opname(op).lower()
+    
 
     match op:
         # Push constants
@@ -263,6 +279,12 @@ def step(state: State) -> State | str:
             else:
                 frame.stack.push(op.value)
         
+            
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
+            
             frame.pc += 1
             return state
 
@@ -277,23 +299,40 @@ def step(state: State) -> State | str:
                 frame.locals[idx] = make_ref_value(str(frame.pc.method.classname))
 
             frame.stack.push(frame.locals[idx])
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
+             
             frame.pc += 1
             return state
 
 
         case _ if name == "store":
             frame.locals[op.index] = frame.stack.pop()
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc += 1
             return state
 
         # Nop (just in case)
         case _ if name == "nop":
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc += 1
             return state
 
         # NEW: Pop - discard top-of-stack
         case _ if name == "pop":
             _ = frame.stack.pop()
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc += 1
             return state
 
@@ -302,6 +341,10 @@ def step(state: State) -> State | str:
             v1 = frame.stack.pop()
             v2 = frame.stack.pop()
             frame.stack.push(v1).push(v2)
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc += 1
             return state
         
@@ -331,6 +374,12 @@ def step(state: State) -> State | str:
             else:
                 raise NotImplementedError(f"int Binary {oper_s!r}")
             frame.stack.push(jvm.Value.int(res))
+            
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
+            
             frame.pc += 1
             return state
 
@@ -341,17 +390,31 @@ def step(state: State) -> State | str:
             if w == 1:
                 v1 = frame.stack.peek()
                 frame.stack.push(v1)
+                
+                executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+                )
+                
                 frame.pc += 1
                 return state
             top = frame.stack.pop()
             if is_cat2(top):
                 frame.stack.push(top).push(top)
+                executed_opcodes.add(
+                    frame.pc.offset,
+                    produce_opcode_repr(op),
+                )   
                 frame.pc += 1
                 return state
             v1 = top
             assert bool(frame.stack), "stack underflow on dup2"
             v2 = frame.stack.pop()
             frame.stack.push(v2).push(v1).push(v2).push(v1)
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc += 1
             return state
         
@@ -362,8 +425,12 @@ def step(state: State) -> State | str:
                 raise NotImplementedError(f"cast from int {v!r}")
             
             frame.stack.push(jvm.Value.int(v.value))
-            frame.pc += 1 
-            return state
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
+            frame.pc += 1
+            return state 
         
 
         # If* against zero (ifeq, ifne, ifgt, ifge, iflt, ifle)
@@ -390,6 +457,10 @@ def step(state: State) -> State | str:
                 (c == "lt" and x < 0) or
                 (c == "le" and x <= 0)
             )
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc = PC(frame.pc.method, t) if jump else (frame.pc + 1)
             return state
 
@@ -410,6 +481,10 @@ def step(state: State) -> State | str:
                 (c == "lt" and av < bv) or
                 (c == "le" and av <= bv)
             )
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc = PC(frame.pc.method, t) if jump else (frame.pc + 1)
             return state
 
@@ -424,6 +499,10 @@ def step(state: State) -> State | str:
                     tgt = int(text.split()[-1].rstrip(')'))
                 except Exception:
                     raise NotImplementedError(f"Goto missing target: {op!r}")
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc = PC(frame.pc.method, tgt)
             return state
 
@@ -450,7 +529,11 @@ def step(state: State) -> State | str:
                     # int, array, reference, etc.
                     ret_val = frame.stack.pop()
                     caller.stack.push(ret_val)
-
+                    
+                executed_opcodes.add(
+                    frame.pc.offset,
+                    produce_opcode_repr(op),
+                )
                 # Caller.pc was already advanced in the invoke handler.
                 return state
 
@@ -462,6 +545,11 @@ def step(state: State) -> State | str:
                     _ = frame.stack.pop()
 
                 # Advance PC to avoid re-running the same return instruction
+            
+                executed_opcodes.add(
+                    frame.pc.offset,
+                    produce_opcode_repr(op),
+                )
                 frame.pc += 1
                 return "ok"
 
@@ -479,6 +567,10 @@ def step(state: State) -> State | str:
             if fname == "$assertionsDisabled":
                 # assertions enabled in tests => push boolean false (represented as int 0)
                 frame.stack.push(jvm.Value.int(0))
+                executed_opcodes.add(
+                    frame.pc.offset,
+                    produce_opcode_repr(op),
+                )
                 frame.pc += 1
                 return state
             raise NotImplementedError(f"Get static field not handled: {fname}")
@@ -500,6 +592,10 @@ def step(state: State) -> State | str:
 
             ref_val = make_ref_value(cls_name)
             frame.stack.push(ref_val)
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc += 1
             return state
 
@@ -550,6 +646,11 @@ def step(state: State) -> State | str:
                     new_frame.locals[i + 1] = a
 
             # Move caller PC forward and push new frame
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
+            
             frame.pc += 1
             state.frames.push(new_frame)
             return state
@@ -576,8 +677,7 @@ def step(state: State) -> State | str:
             return "failure"
         
         
-        #ARRAYSI
-        
+        #ARRAYSI        
         case _ if name == "newarray":
             length_val = frame.stack.pop()
             if not is_int(length_val): 
@@ -589,6 +689,10 @@ def step(state: State) -> State | str:
             
             arr = [jvm.Value.int(0) for _ in range(length)]
             frame.stack.push(arr)
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc += 1
             return state
         
@@ -605,6 +709,10 @@ def step(state: State) -> State | str:
                 elements = arr
 
             frame.stack.push(jvm.Value.int(len(elements)))
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc += 1
             return state
         
@@ -640,7 +748,11 @@ def step(state: State) -> State | str:
                 frame.stack.push(element)
             else:
                 frame.stack.push(jvm.Value.int(element))
-              
+                
+                executed_opcodes.add(
+                    frame.pc.offset,
+                    produce_opcode_repr(op),
+                )              
             frame.pc += 1
             return state
 
@@ -676,12 +788,20 @@ def step(state: State) -> State | str:
                 return "out of bounds"
 
             elems[idx] = val
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc += 1
             return state
 
         
         case _ if name == "aconst_null":
             frame.stack.push(None)
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc += 1
             return state
         
@@ -691,6 +811,10 @@ def step(state: State) -> State | str:
             cur = frame.locals.get(idx)
             assert is_int(cur), f"incr expects int local, got {cur}"
             frame.locals[idx] = jvm.Value.int(cur.value + amount)
+            executed_opcodes.add(
+                frame.pc.offset,
+                produce_opcode_repr(op),
+            )
             frame.pc += 1
             return state
         
@@ -707,8 +831,10 @@ for i, v in enumerate(input.values):
 state = State({}, Stack.empty().push(frame))
 
 for _ in range(1000):
-    state = step(state)
+    executed_opcodes = ExecutedOpcodes()
+    state = step(state, executed_opcodes)
     if isinstance(state, str):
+        print("[FINAL] executed opcodes: {executed_opcodes.opcodes}")
         print(state)
         break
 else:

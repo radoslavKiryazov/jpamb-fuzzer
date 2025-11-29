@@ -954,7 +954,7 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
     print("========================================================\n")
 
     # collect all fuzzing results for analysis
-    fuzzing_result = []
+    fuzzing_result: list[dict] = []
 
     # 4. run the fuzzer main loop, and classify results
     for item in alarms:
@@ -1034,10 +1034,17 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
                             program + (item.methodid.encode(), case.encode()),
                             timeout=timeout,
                         )
+                        
+                        # stderr = r.stderr   # depending on how Reporter stores it
+                        # stack_trace = extract_stack_frames(stderr)
+                        # opcode_trace = extract_opcode_sequence(stderr)
+
                         print(f"[EXEC RESULT]: {out}")
                         result = out.splitlines()[-1].strip()
+                        
                     except subprocess.TimeoutExpired:
                         result = "*"
+                        
                     except subprocess.CalledProcessError as e:
                         log.error(e)
                         result = "failure"
@@ -1049,7 +1056,8 @@ def jfuzz(suite, report, filter, timeout, stepwise, with_python):
                         "round": round,
                         "input": case.encode(),
                         "output": result,
-                        "classification": classification
+                        "classification": classification,
+                        # "opcodes": opcode_trace
                         })
 
 
