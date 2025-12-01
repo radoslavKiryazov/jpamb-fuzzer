@@ -1,0 +1,45 @@
+time per method:
+
+token per method:
+
+
+with error 33
+    hit within 1 round          - 28
+        simple 10
+        array 6
+        calls 7
+        tricky 2
+        loops 3
+        trickyminimal
+    hit within 3 round           - 3
+        simple 2
+        array 1
+        calls 
+        tricky 
+        loops
+        trickyminimal
+    hit within 10 round          - 2
+        simple
+        array  2
+        calls
+        tricky
+        loops
+        trickyminimal
+    fail to hit                  - 1
+        jpamb.cases.Simple.divideByNMinus10054203: '' -> divide by zero,0,(0),OK
+
+no error
+25 all found 
+
+
+=============================================
+methods in total:
+58
+
+time in total
+24m 19.56s
+
+token in totl
+Total prompt tokens:   214,678
+Total response tokens: 3,992
+Total combined tokens: 483,554

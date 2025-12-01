@@ -38,7 +38,7 @@ class Input:
         return "(" + ", ".join(v.encode() for v in self.values) + ")"
 
 
-# CASE_RE = re.compile(r"([^ ]*) +(\([^)]*\)) -> (.*)")
+CASE_RE = re.compile(r"([^ ]*) +(\([^)]*\)) -> (.*)")
 CASE_RE_FUZZ = re.compile(r"^(\S+)\s+(\([^)]*\))\s*->\s*(.*)$")
 
 
@@ -55,6 +55,7 @@ class Case:
     @staticmethod
     def match(line) -> re.Match:
         if not (m := CASE_RE_FUZZ.match(line)):
+        # if not (m := CASE_RE.match(line)):
             raise ValueError(f"Unexpected line: {line!r}")
         return m
 
@@ -321,6 +322,7 @@ class Suite:
     @property
     def case_file(self) -> Path:
         return self.stats_folder / "newcases_tricky_minimal.txt"
+        # return self.stats_folder / "cases.txt"
 
     @property
     def version(self):

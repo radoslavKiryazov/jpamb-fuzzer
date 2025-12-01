@@ -8,7 +8,7 @@ Integrated with syntactic analyzer for better parsing and analysis
 
 import os, re, sys, importlib
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Iterable, Optional, Set, Literal
+from typing import Dict, List, Tuple, Iterable, Optional, Set, Literal, Any
 
 
 # ---------- Import AST/CST parser (tree-sitter) ----------
@@ -615,6 +615,7 @@ def main():
         sys.stderr.write(f"[bounded] using novel_abstractions from: {getattr(na, '__file__', '?')}\n")
         
         
+        _has_relational_domain = False
         # Try to use relational domain WITH novel abstractions if both available
         if _has_relational_domain:
             sys.stderr.write("[bounded] using relational domain + novel abstractions\n")
@@ -677,18 +678,21 @@ def main():
             # For other cases, trust AI results (they have better loop/taint analysis)
             # Only boost if syntactic is much higher and AI is very low
             # BUT: Don't boost errors after infinite loops (they're unreachable)
-            if ai_inf < 50:  # Only boost if not an infinite loop
-                if ai_div0 < 20 and syn_div > ai_div0 + 30:
-                    div0 = min(syn_div, ai_div0 + 20)  # Small boost, don't override completely
-                if ai_asrt < 20 and syn_asrt > ai_asrt + 30:
-                    asrt = min(syn_asrt, ai_asrt + 20)
-                if ai_oob < 20 and syn_oob > ai_oob + 30:
-                    oob = min(syn_oob, ai_oob + 20)
-                if ai_npe < 20 and syn_npe > ai_npe + 30:
-                    npe = min(syn_npe, ai_npe + 20)
-            if ai_inf < 20 and syn_inf > ai_inf + 30:
-                inf = min(syn_inf, ai_inf + 20)
-            
+
+
+            # if ai_inf < 50:  # Only boost if not an infinite loop
+            #     if ai_div0 < 20 and syn_div > ai_div0 + 30:
+            #         div0 = min(syn_div, ai_div0 + 20)  # Small boost, don't override completely
+            #     if ai_asrt < 20 and syn_asrt > ai_asrt + 30:
+            #         asrt = min(syn_asrt, ai_asrt + 20)
+            #     if ai_oob < 20 and syn_oob > ai_oob + 30:
+            #         oob = min(syn_oob, ai_oob + 20)
+            #     if ai_npe < 20 and syn_npe > ai_npe + 30:
+            #         npe = min(syn_npe, ai_npe + 20)
+            # if ai_inf < 20 and syn_inf > ai_inf + 30:
+            #     inf = min(syn_inf, ai_inf + 20)
+
+
             # Recompute ok
             worst = max(div0, asrt, oob, npe, inf)
             ok = max(0, 100 - worst)
@@ -750,12 +754,56 @@ def main():
         else:
             ok, div0, asrt, oob, npe, inf = compute_scores(method_text, states, prog)
 
-    print(f"ok;{ok}%")
-    print(f"divide by zero;{div0}%")
-    print(f"assertion error;{asrt}%")
-    print(f"out of bounds;{oob}%")
-    print(f"null pointer;{npe}%")
-    print(f"*;{inf}%")
+
+    _fuzz_enabled = False
+    _base_line_only = True
+    
+    
+    if _fuzz_enabled:
+        import click
+        from jpamb import cli
+        # --- Arguments Setup ---
+        args = [
+            "jfuzz",  # **Must** include the command name first
+            # "--with-python",
+            # "--timeout", "5.0", # Increase timeout to 5.0 seconds
+            # "--filter", ".*test_method.*", # Filter for methods containing 'test_method'
+            # "--report", "fuzz_report.txt", # Specify a filename for the report
+            # "--no-stepwise" # Pass the 'no' flag for the stepwise option
+        ]
+            
+        # --- Invocation ---
+        try:
+            # **The key is cli.invoke()**
+            # cli.invoke() runs the entire CLI app but only executes the command 
+            # specified in the arguments, without reading sys.argv.
+            result = cli.invoke(args) 
+
+            # Check the exit code of the command
+            if result.exit_code == 0:
+                print("✅ jfuzz command executed successfully.")
+            else:
+                print(f"❌ jfuzz command failed with exit code: {result.exit_code}")
+                # If the command printed any output/error to stdout/stderr, you might 
+                # be able to capture it depending on how the command handles output.
+        except click.exceptions.Exit as e:
+            print(f"❌ The CLI exited prematurely. Exit code: {e.exit_code}")
+    elif _base_line_only:
+        syn_worst = max(syn_div, syn_asrt, syn_oob, syn_npe, syn_inf)
+        syn_ok = max(0, 100 - syn_worst)
+        print(f"ok;{syn_ok}%")
+        print(f"divide by zero;{syn_div}%")
+        print(f"assertion error;{syn_asrt}%")
+        print(f"out of bounds;{syn_oob}%")
+        print(f"null pointer;{syn_npe}%")
+        print(f"*;{syn_inf}%")
+    else:
+        print(f"ok;{ok}%")
+        print(f"divide by zero;{div0}%")
+        print(f"assertion error;{asrt}%")
+        print(f"out of bounds;{oob}%")
+        print(f"null pointer;{npe}%")
+        print(f"*;{inf}%")
 
 
 if __name__ == "__main__":

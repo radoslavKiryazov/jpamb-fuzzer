@@ -1,2 +1,42 @@
 file,class,methode,beginline,endline,begincolumn,endcolumn,rule,ruleset,package,text
-0,Arrays,arraySumIsLarge:([I)V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Arrays,arrayContent:()V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Arrays,arrayInBounds:()V,0,0,0,0,ok,0,jpamb.cases,0
+0,Arrays,arrayIsNull:()V,0,0,0,0,null pointer,0,jpamb.cases,0
+0,Arrays,arrayIsNullLength:()V,0,0,0,0,null pointer,0,jpamb.cases,0
+0,Arrays,arrayLength:()V,0,0,0,0,ok,0,jpamb.cases,0
+0,Arrays,arrayNotEmpty:([I)V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Arrays,arrayOutOfBounds:()V,0,0,0,0,out of bounds,0,jpamb.cases,0
+0,Arrays,arraySometimesNull:(I)V,0,0,0,0,null pointer,0,jpamb.cases,0
+0,Arrays,arraySpellsHello:([C)V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Arrays,arraySumIsLarge:([I)V,0,0,0,0,assertion error,0,jpamb.cases,00,Arrays,binarySearch:(I)V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Arrays,binarySearch:(I)V,0,0,0,0,assertion error,0,jpamb.cases,0
+
+0,Calls,allPrimesArePositive:(I)V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Calls,callsAssertFalse:()V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Calls,callsAssertFib:(I)V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Calls,callsAssertIf:(Z)V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Calls,callsAssertIfWithTrue:()V,0,0,0,0,ok,0,jpamb.cases,0
+0,Calls,callsAssertTrue:()V,0,0,0,0,ok,0,jpamb.cases,0
+
+0,Loops,forever:()V,0,0,0,0,*,0,jpamb.cases,0
+0,Loops,neverAsserts:()V,0,0,0,0,*,0,jpamb.cases,0
+0,Loops,neverDivides:()I,0,0,0,0,*,0,jpamb.cases,0
+0,Loops,terminates:()V,0,0,0,0,assertion error,0,jpamb.cases,0
+
+0,Simple,assertBoolean:(Z)V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Simple,assertFalse:()V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Simple,assertInteger:(I)V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Simple,assertPositive:(I)V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Simple,checkBeforeAssert:(I)V,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Simple,checkBeforeDivideByN:(I)I,0,0,0,0,assertion error,0,jpamb.cases,0
+0,Simple,checkBeforeDivideByN2:(I)I,0,0,0,0,ok,0,jpamb.cases,0
+0,Simple,divideByN:(I)I,0,0,0,0,divide by zero,0,jpamb.cases,0
+0,Simple,divideByNMinus10054203:(I)I,0,0,0,0,divide by zero,0,jpamb.cases,0
+0,Simple,divideByZero:()I,0,0,0,0,divide by zero,0,jpamb.cases,0
+0,Simple,divideZeroByZero:(II)I,0,0,0,0,divide by zero,0,jpamb.cases,0
+0,Simple,earlyReturn:()I,0,0,0,0,ok,0,jpamb.cases,0
+0,Simple,justReturn:()I,0,0,0,0,ok,0,jpamb.cases,0
+0,Simple,justReturnNothing:()V,0,0,0,0,ok,0,jpamb.cases,0
+0,Simple,multiError:(Z)I,0,0,0,0,assertion error,0,jpamb.cases,0
+
+0,Tricky,collatz:(I)V,0,0,0,0,assertion error,0,jpamb.cases,0
